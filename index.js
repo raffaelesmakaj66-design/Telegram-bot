@@ -57,11 +57,12 @@ bot.on("callback_query", (query) => {
         chatId,
         `🏷️ *Modulo Asta*
 
-1️⃣ Nome  
-2️⃣ Prodotto  
-3️⃣ Offerta  
+Scrivi in un unico messaggio con i seguenti dati:
 
-✍️ Scrivi tutto in *un unico messaggio*.`,
+1️⃣ Oggetto/i  
+2️⃣ Nickname  
+3️⃣ Prezzo base  
+4️⃣ Rilancio`,
         { parse_mode: "Markdown" }
       );
       break;
@@ -81,7 +82,7 @@ bot.on("callback_query", (query) => {
 
 Scrivi in un unico messaggio con i seguenti dati:
 
-1️⃣ Nick  
+1️⃣ Nickname  
 2️⃣ @ Telegram  
 3️⃣ Prodotti desiderati`,
         { parse_mode: "Markdown" }
