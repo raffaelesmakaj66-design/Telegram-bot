@@ -3,23 +3,20 @@ import TelegramBot from "node-telegram-bot-api";
 console.log("🤖 Bot Telegram avviato");
 
 const TOKEN = process.env.TELEGRAM_TOKEN;
-if (!TOKEN) {
-  console.error("❌ TELEGRAM_TOKEN mancante");
+const ADMIN_ID = process.env.ADMIN_ID; // IL TUO TELEGRAM ID
+
+if (!TOKEN || !ADMIN_ID) {
+  console.error("❌ Variabili mancanti");
   process.exit(1);
 }
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-/* =======================
-   /start
-======================= */
+// /start
 bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  const name = msg.from.first_name || "utente";
-
   bot.sendMessage(
-    chatId,
-    `👋 Ciao ${name}!\n\nCon questo bot puoi:\n• partecipare alle aste\n• compilare il modulo direttamente qui`,
+    msg.chat.id,
+    "👋 Benvenuto!\n\nPremi il bottone Aste e invia il modulo.",
     {
       reply_markup: {
         inline_keyboard: [
@@ -35,15 +32,35 @@ bot.onText(/\/start/, (msg) => {
   );
 });
 
-/* =======================
-   /aste → MODULO IN CHAT
-======================= */
+// /aste → modulo
 bot.onText(/\/aste/, (msg) => {
-  const chatId = msg.chat.id;
-
   bot.sendMessage(
-    chatId,
-    `🏷️ *Modulo Asta*\n\nRispondi a queste domande:\n\n1️⃣ Nome\n2️⃣ Prodotto\n3️⃣ Offerta\n\n✍️ Scrivi tutto in un unico messaggio.`,
+    msg.chat.id,
+    `🏷️ *Modulo Asta*\n
+1️⃣ Nome
+2️⃣ Prodotto
+3️⃣ Offerta
+
+✍️ Scrivi tutto in un unico messaggio.`,
+    { parse_mode: "Markdown" }
+  );
+});
+
+// risposta al modulo
+bot.on("message", (msg) => {
+  if (!msg.text) return;
+  if (msg.text.startsWith("/")) return;
+
+  const user = msg.from;
+  const text = msg.text;
+
+  // conferma all’utente
+  bot.sendMessage(msg.chat.id, "✅ Modulo inviato correttamente!");
+
+  // invio all’admin
+  bot.sendMessage(
+    ADMIN_ID,
+    `📥 *Nuovo modulo asta*\n\n👤 ${user.first_name} (@${user.username || "no username"})\n🆔 ${user.id}\n\n📄 ${text}`,
     { parse_mode: "Markdown" }
   );
 });
