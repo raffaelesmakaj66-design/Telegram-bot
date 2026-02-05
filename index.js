@@ -3,56 +3,66 @@ import TelegramBot from "node-telegram-bot-api";
 console.log("🤖 Bot Telegram avviato");
 
 const TOKEN = process.env.TELEGRAM_TOKEN;
-const ADMIN_ID = process.env.ADMIN_ID; // IL TUO TELEGRAM ID
+const ADMIN_ID = process.env.ADMIN_ID; // tuo Telegram ID
 
 if (!TOKEN || !ADMIN_ID) {
-  console.error("❌ Variabili mancanti");
+  console.error("❌ TELEGRAM_TOKEN o ADMIN_ID mancante");
   process.exit(1);
 }
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// /start
+/* =====================
+   /start
+===================== */
 bot.onText(/\/start/, (msg) => {
   bot.sendMessage(
     msg.chat.id,
-    "👋 Benvenuto!\n\nPremi il bottone Aste e invia il modulo.",
+    `👋 *Benvenuto!*
+
+Premi il bottone qui sotto per partecipare all’asta.`,
     {
+      parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
-          [
-            {
-              text: "⚖️ Aste",
-              switch_inline_query_current_chat: "/aste"
-            }
-          ]
+          [{ text: "⚖️ Aste", callback_data: "OPEN_ASTA" }]
         ]
       }
     }
   );
 });
 
-// /aste → modulo
-bot.onText(/\/aste/, (msg) => {
-  bot.sendMessage(
-    msg.chat.id,
-    `🏷️ *Modulo Asta*\n
-1️⃣ Nome
-2️⃣ Prodotto
-3️⃣ Offerta
+/* =====================
+   BOTTONE ASTE
+===================== */
+bot.on("callback_query", (query) => {
+  const chatId = query.message.chat.id;
 
-✍️ Scrivi tutto in un unico messaggio.`,
-    { parse_mode: "Markdown" }
-  );
+  if (query.data === "OPEN_ASTA") {
+    bot.sendMessage(
+      chatId,
+      `🏷️ *Modulo Asta*
+
+1️⃣ Nome  
+2️⃣ Prodotto  
+3️⃣ Offerta  
+
+✍️ Scrivi tutto in *un unico messaggio*.`,
+      { parse_mode: "Markdown" }
+    );
+  }
+
+  bot.answerCallbackQuery(query.id);
 });
 
-// risposta al modulo
+/* =====================
+   RISPOSTA AL MODULO
+===================== */
 bot.on("message", (msg) => {
   if (!msg.text) return;
   if (msg.text.startsWith("/")) return;
 
   const user = msg.from;
-  const text = msg.text;
 
   // conferma all’utente
   bot.sendMessage(msg.chat.id, "✅ Modulo inviato correttamente!");
@@ -60,7 +70,12 @@ bot.on("message", (msg) => {
   // invio all’admin
   bot.sendMessage(
     ADMIN_ID,
-    `📥 *Nuovo modulo asta*\n\n👤 ${user.first_name} (@${user.username || "no username"})\n🆔 ${user.id}\n\n📄 ${text}`,
+    `📥 *Nuovo modulo asta*
+
+👤 ${user.first_name} (@${user.username || "nessuno"})
+🆔 ${user.id}
+
+📄 ${msg.text}`,
     { parse_mode: "Markdown" }
   );
 });
