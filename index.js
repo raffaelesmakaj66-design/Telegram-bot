@@ -3,7 +3,7 @@ import TelegramBot from "node-telegram-bot-api";
 console.log("🤖 Bot Telegram avviato");
 
 const TOKEN = process.env.TELEGRAM_TOKEN;
-const ADMIN_ID = process.env.ADMIN_ID; // tuo Telegram ID
+const ADMIN_ID = process.env.ADMIN_ID;
 
 if (!TOKEN || !ADMIN_ID) {
   console.error("❌ TELEGRAM_TOKEN o ADMIN_ID mancante");
@@ -12,16 +12,21 @@ if (!TOKEN || !ADMIN_ID) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
+// 🔗 IMMAGINE DI BENVENUTO (URL PUBBLICO)
+const WELCOME_IMAGE =
+  "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg";
+
 /* =====================
    /start
 ===================== */
 bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(
+  bot.sendPhoto(
     msg.chat.id,
-    `👋 *Benvenuto!*
+    WELCOME_IMAGE,
+    {
+      caption: `👋 *Benvenuto!*
 
 Premi il bottone qui sotto per partecipare all’asta.`,
-    {
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
@@ -64,10 +69,8 @@ bot.on("message", (msg) => {
 
   const user = msg.from;
 
-  // conferma all’utente
   bot.sendMessage(msg.chat.id, "✅ Modulo inviato correttamente!");
 
-  // invio all’admin
   bot.sendMessage(
     ADMIN_ID,
     `📥 *Nuovo modulo asta*
