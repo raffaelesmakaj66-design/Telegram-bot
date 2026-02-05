@@ -12,9 +12,8 @@ if (!TOKEN || !ADMIN_ID) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// 🔗 IMMAGINE DI BENVENUTO (URL PUBBLICO)
-const WELCOME_IMAGE = "https:
-  "https://imgur.com/a/1NUMb3k";
+// ✅ IMMAGINE DI BENVENUTO (LINK DIRETTO)
+const WELCOME_IMAGE = "https://i.imgur.com/UxIx4Gh_d.webp";
 
 /* =====================
    /start
@@ -69,8 +68,10 @@ bot.on("message", (msg) => {
 
   const user = msg.from;
 
+  // conferma all’utente
   bot.sendMessage(msg.chat.id, "✅ Modulo inviato correttamente!");
 
+  // invio all’admin
   bot.sendMessage(
     ADMIN_ID,
     `📥 *Nuovo modulo asta*
