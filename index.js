@@ -13,8 +13,8 @@ if (!TOKEN || !ADMIN_ID) {
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // 🔗 IMMAGINE DI BENVENUTO (URL PUBBLICO)
-const WELCOME_IMAGE =
-  "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg";
+const WELCOME_IMAGE = "https:
+  "https://imgur.com/a/1NUMb3k";
 
 /* =====================
    /start
