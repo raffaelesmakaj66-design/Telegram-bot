@@ -83,3 +83,10 @@ bot.on("message", (msg) => {
     { parse_mode: "Markdown" }
   );
 });
+// 🔎 SOLO PER RECUPERARE FILE_ID (TEMPORANEO)
+bot.on("photo", (msg) => {
+  const chatId = msg.chat.id;
+  const fileId = msg.photo[msg.photo.length - 1].file_id;
+
+  bot.sendMessage(chatId, `📸 FILE_ID:\n\n${fileId}`);
+});
