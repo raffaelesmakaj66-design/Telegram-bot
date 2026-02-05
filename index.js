@@ -12,6 +12,9 @@ if (!TOKEN || !ADMIN_ID) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
+// MULTI-ADMIN (separati da virgola su Railway)
+const ADMIN_IDS = process.env.ADMIN_ID.split(",").map(id => id.trim());
+
 // FILE_ID FOTO BENVENUTO
 const WELCOME_IMAGE = "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
 
@@ -31,7 +34,7 @@ Premi un bottone qui sotto per accedere alle funzioni:`,
         inline_keyboard: [
           [
             { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
-            { text: "📄 Listino digitale", callback_data: "OPEN_LISTINO" }
+            { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
           ],
           [
             { text: "📝 Modulo ordinazioni", callback_data: "OPEN_ORDINI" }
@@ -54,11 +57,11 @@ bot.on("callback_query", (query) => {
         chatId,
         `🏷️ *Modulo Asta*
 
-1️⃣ Nome  
-2️⃣ Prodotto  
-3️⃣ Offerta  
+Scrivi in un unico messaggio con i seguenti dati:
 
-✍️ Scrivi tutto in *un unico messaggio*.`,
+1️⃣ Nick  
+2️⃣ @Telegram  
+3️⃣ Prodotti desiderati`,
         { parse_mode: "Markdown" }
       );
       break;
@@ -66,7 +69,7 @@ bot.on("callback_query", (query) => {
     case "OPEN_LISTINO":
       bot.sendMessage(
         chatId,
-        `📄 *Listino digitale*\n\nEcco il nostro listino completo:\n- Prodotto A: €10\n- Prodotto B: €15\n- Prodotto C: €20`,
+        `📄 *Listino*\n\nEcco il nostro listino completo:\n- Prodotto A: €10\n- Prodotto B: €15\n- Prodotto C: €20`,
         { parse_mode: "Markdown" }
       );
       break;
@@ -74,7 +77,13 @@ bot.on("callback_query", (query) => {
     case "OPEN_ORDINI":
       bot.sendMessage(
         chatId,
-        `📝 *Modulo Ordinazioni*\n\nRispondi a queste domande:\n1️⃣ Nome\n2️⃣ Prodotto\n3️⃣ Quantità\n4️⃣ Note aggiuntive`,
+        `📝 *Modulo Ordinazioni*
+
+Scrivi in un unico messaggio con i seguenti dati:
+
+1️⃣ Nick  
+2️⃣ @Telegram  
+3️⃣ Prodotti desiderati`,
         { parse_mode: "Markdown" }
       );
       break;
@@ -84,7 +93,7 @@ bot.on("callback_query", (query) => {
 });
 
 /* =====================
-   RISPOSTA AL MODULO ASTA/ORDINI
+   RISPOSTA AI MODULI
 ===================== */
 bot.on("message", (msg) => {
   if (!msg.text) return;
@@ -95,10 +104,12 @@ bot.on("message", (msg) => {
   // conferma all’utente
   bot.sendMessage(msg.chat.id, "✅ Modulo inviato correttamente!");
 
-  // invio all’admin
-  bot.sendMessage(
-    ADMIN_ID,
-    `📥 *Nuovo modulo ricevuto*\n\n👤 ${user.first_name} (@${user.username || "nessuno"})\n🆔 ${user.id}\n\n📄 ${msg.text}`,
-    { parse_mode: "Markdown" }
-  );
+  // invio a tutti gli admin
+  ADMIN_IDS.forEach(adminId => {
+    bot.sendMessage(
+      adminId,
+      `📥 *Nuovo modulo ricevuto*\n\n👤 ${user.first_name} (@${user.username || "nessuno"})\n🆔 ${user.id}\n\n📄 ${msg.text}`,
+      { parse_mode: "Markdown" }
+    );
+  });
 });
