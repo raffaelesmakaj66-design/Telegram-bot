@@ -12,8 +12,8 @@ if (!TOKEN || !ADMIN_ID) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// ✅ IMMAGINE DI BENVENUTO (LINK DIRETTO)
-const WELCOME_IMAGE = "https://i.imgur.com/UxIx4Gh_d.webp";
+// ✅ FILE_ID TELEGRAM PER LA FOTO DI BENVENUTO
+const WELCOME_IMAGE = "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
 
 /* =====================
    /start
@@ -82,11 +82,4 @@ bot.on("message", (msg) => {
 📄 ${msg.text}`,
     { parse_mode: "Markdown" }
   );
-});
-// 🔎 SOLO PER RECUPERARE FILE_ID (TEMPORANEO)
-bot.on("photo", (msg) => {
-  const chatId = msg.chat.id;
-  const fileId = msg.photo[msg.photo.length - 1].file_id;
-
-  bot.sendMessage(chatId, `📸 FILE_ID:\n\n${fileId}`);
 });
