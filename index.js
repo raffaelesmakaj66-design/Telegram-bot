@@ -27,7 +27,7 @@ bot.onText(/\/start/, (msg) => {
     msg.chat.id,
     WELCOME_IMAGE,
     {
-      caption: `👋 *Benvenuto nel bot ufficiale di Capybar!*
+      caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*
 
 Premi un bottone qui sotto per accedere alle funzioni:`,
       parse_mode: "Markdown",
