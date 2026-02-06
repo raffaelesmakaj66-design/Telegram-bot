@@ -22,10 +22,44 @@ const WELCOME_IMAGE =
 // LINK CANALE UFFICIALE (CAMBIALO CON IL TUO)
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
+// MEMO UTENTI CHE HANNO GIA' FATTO /START
+const usersStarted = new Set();
+
+/* =====================
+   MESSAGGIO INTRODUTTIVO AUTOMATICO
+===================== */
+bot.on("message", (msg) => {
+  if (!msg.text) return;
+
+  // Se è un comando, ignora
+  if (msg.text.startsWith("/")) return;
+
+  // Se l'utente ha già fatto /start, non mostrare introduttivo
+  if (usersStarted.has(msg.from.id)) return;
+
+  // Invia messaggio introduttivo
+  bot.sendMessage(
+    msg.chat.id,
+    `👋 Benvenuto nel bot ufficiale di CapyBar!
+
+Cosa può fare questo bot:
+- ⚖️ Partecipare alle aste
+- 📄 Consultare il listino prodotti
+- 📝 Effettuare ordini
+- 💼 Inviare la candidatura per lavorare con noi
+- 🆘 Contattare l'assistenza
+- 📣 Accedere al canale ufficiale
+
+Premi /start per iniziare!`
+  );
+});
+
 /* =====================
    /start
 ===================== */
 bot.onText(/\/start/, (msg) => {
+  usersStarted.add(msg.from.id);
+
   bot.sendPhoto(
     msg.chat.id,
     WELCOME_IMAGE,
@@ -45,12 +79,12 @@ Premi un bottone qui sotto per accedere alle funzioni:`,
             { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
             { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
           ],
-          // 📝 Modulo ordinazioni | 🆘 Assistenza
+          // 📝 Ordina | 🆘 Assistenza
           [
             { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
             { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
           ],
-          // 💼 Candidati dipendente (lungo quanto 2 bottoni)
+          // 💼 Candidati dipendente (lungo)
           [
             { text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }
           ]
@@ -61,7 +95,7 @@ Premi un bottone qui sotto per accedere alle funzioni:`,
 });
 
 /* =====================
-   BOTTONI
+   BOTTONI CALLBACK
 ===================== */
 bot.on("callback_query", (query) => {
   const chatId = query.message.chat.id;
