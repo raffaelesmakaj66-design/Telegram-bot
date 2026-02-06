@@ -61,8 +61,8 @@ bot.on("callback_query", (query) => {
 
 Scrivi in un unico messaggio:
 
-1️⃣ Oggetto/i  
-2️⃣ Nickname  
+1️⃣ Nickname  
+2️⃣ Oggetto/i  
 3️⃣ Prezzo base  
 4️⃣ Rilancio`,
         { parse_mode: "Markdown" }
