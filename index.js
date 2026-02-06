@@ -47,7 +47,7 @@ Premi un bottone qui sotto per accedere alle funzioni:`,
           ],
           // 📝 Modulo ordinazioni | 🆘 Assistenza
           [
-            { text: "📝 Modulo ordinazioni", callback_data: "OPEN_ORDINI" },
+            { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
             { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
           ],
           // 💼 Candidati dipendente (lungo quanto 2 bottoni)
@@ -97,7 +97,7 @@ Scrivi in un unico messaggio:
     case "OPEN_ORDINI":
       bot.sendMessage(
         chatId,
-        `📝 *Ordina*
+        `📝 *Modulo Ordinazioni*
 
 Scrivi in un unico messaggio:
 
