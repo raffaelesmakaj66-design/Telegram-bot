@@ -20,7 +20,7 @@ const WELCOME_IMAGE =
   "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
 
 // LINK CANALE UFFICIALE (CAMBIALO CON IL TUO)
-const CHANNEL_URL = "https://t.me/CapybarOfficial";
+const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
 /* =====================
    /start
