@@ -98,7 +98,7 @@ Scrivi in un unico messaggio:
     case "OPEN_CANDIDATURA":
       bot.sendMessage(
         chatId,
-        `📝 *Modulo Candidatura Dipendente*
+        `📝 *Come fare il curriculum*
 
 Compila il tuo curriculum seguendo questi punti:
 
