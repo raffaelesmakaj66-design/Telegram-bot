@@ -20,7 +20,7 @@ const WELCOME_IMAGE =
   "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
 
 // LINK CANALE UFFICIALE (CAMBIALO CON IL TUO)
-const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
+const CHANNEL_URL = "https://t.me/CapybarOfficial";
 
 /* =====================
    /start
@@ -36,15 +36,22 @@ Premi un bottone qui sotto per accedere alle funzioni:`,
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
+          // 📣 Canale
           [
             { text: "📣 Canale", url: CHANNEL_URL }
           ],
+          // ⚖️ Aste | 📄 Listino
           [
             { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
             { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
           ],
+          // 📝 Modulo ordinazioni | 🆘 Assistenza
           [
             { text: "📝 Modulo ordinazioni", callback_data: "OPEN_ORDINI" },
+            { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
+          ],
+          // 💼 Candidati dipendente (lungo quanto 2 bottoni)
+          [
             { text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }
           ]
         ]
@@ -90,7 +97,7 @@ Scrivi in un unico messaggio:
     case "OPEN_ORDINI":
       bot.sendMessage(
         chatId,
-        `📝 *Modulo Ordinazioni*
+        `📝 *Ordina*
 
 Scrivi in un unico messaggio:
 
@@ -117,6 +124,16 @@ Compila il tuo curriculum seguendo questi punti:
 
 📍 *Consegna del curriculum*:  
 Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
+        { parse_mode: "Markdown" }
+      );
+      break;
+
+    case "OPEN_ASSISTENZA":
+      bot.sendMessage(
+        chatId,
+        `🆘 *Assistenza*
+
+Se hai bisogno di aiuto o supporto contatta un admin direttamente o scrivi qui la tua richiesta.`,
         { parse_mode: "Markdown" }
       );
       break;
