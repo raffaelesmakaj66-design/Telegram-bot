@@ -30,7 +30,7 @@ bot.onText(/\/start/, (msg) => {
     msg.chat.id,
     WELCOME_IMAGE,
     {
-      caption: `👋 *Benvenuto nel bot ufficiale di Capybar!*
+      caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*
 
 Premi un bottone qui sotto per accedere alle funzioni:`,
       parse_mode: "Markdown",
@@ -115,8 +115,8 @@ Scrivi in un unico messaggio:
 
 Compila il tuo curriculum seguendo questi punti:
 
-1️⃣ Dati personali: @Telegram, Discord, telefono, nome e ore disponibili  
-2️⃣ Parlaci di te (es: cucina e lavoro)  
+1️⃣ Dati personali: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)  
+2️⃣ Parlaci di te: chi sei, passioni...
 3️⃣ Perché dovremmo sceglierti  
 4️⃣ Esperienze lavorative (se presenti) e se lavori attualmente in un’azienda  
 5️⃣ Competenze: uso della cassa e capacità di cucinare  
