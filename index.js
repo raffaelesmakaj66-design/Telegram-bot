@@ -156,6 +156,9 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const user = msg.from;
 
+  // --- IGNORA TUTTI I COMANDI ---
+  if (msg.text.startsWith("/")) return;
+
   // --- RISPOSTE ADMIN ---
   if (ADMIN_IDS.includes(user.id)) {
     const targetChatId = adminReplyMap[user.id];
@@ -163,7 +166,7 @@ bot.on("message", (msg) => {
       bot.sendMessage(targetChatId, `💬 *Risposta admin:*\n${msg.text}`, { parse_mode: "Markdown" });
       delete adminReplyMap[user.id]; // rimuove mappa dopo risposta
     }
-    return; // non trattare come modulo
+    return; // non trattare come modulo/assistenza
   }
 
   // --- ASSISTENZA ---
@@ -188,11 +191,10 @@ bot.on("message", (msg) => {
       adminReplyMap[adminId] = chatId;
     });
 
-    return; // esci qui, non trattare come modulo
+    return; // non trattare come modulo
   }
 
   // --- MODULI NORMALI ---
-  if (msg.text.startsWith("/")) return; // ignora comandi
   bot.sendMessage(chatId, "✅ Modulo inviato correttamente!");
   ADMIN_IDS.forEach(adminId => {
     bot.sendMessage(
