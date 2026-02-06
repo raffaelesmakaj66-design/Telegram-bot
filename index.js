@@ -156,9 +156,19 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const user = msg.from;
 
+  // --- RISPOSTE ADMIN ---
+  if (ADMIN_IDS.includes(user.id)) {
+    const targetChatId = adminReplyMap[user.id];
+    if (targetChatId) {
+      bot.sendMessage(targetChatId, `💬 *Risposta admin:*\n${msg.text}`, { parse_mode: "Markdown" });
+      delete adminReplyMap[user.id]; // rimuove mappa dopo risposta
+    }
+    return; // non trattare come modulo
+  }
+
   // --- ASSISTENZA ---
   if (assistenzaUsers.has(chatId)) {
-    // invia conferma all'utente
+    // conferma SOLO per l'assistenza
     bot.sendMessage(chatId, "✅ Messaggio inviato correttamente!");
 
     // invia a tutti gli admin
@@ -178,7 +188,7 @@ bot.on("message", (msg) => {
       adminReplyMap[adminId] = chatId;
     });
 
-    return; // non prosegue per moduli
+    return; // esci qui, non trattare come modulo
   }
 
   // --- MODULI NORMALI ---
@@ -196,13 +206,4 @@ bot.on("message", (msg) => {
       { parse_mode: "Markdown" }
     );
   });
-
-  // --- RISPOSTE ADMIN ---
-  if (ADMIN_IDS.includes(user.id)) {
-    const targetChatId = adminReplyMap[user.id];
-    if (targetChatId) {
-      bot.sendMessage(targetChatId, `💬 *Risposta admin:*\n${msg.text}`, { parse_mode: "Markdown" });
-      delete adminReplyMap[user.id]; // rimuove mappa dopo risposta
-    }
-  }
 });
