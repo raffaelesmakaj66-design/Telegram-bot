@@ -19,6 +19,9 @@ const ADMIN_IDS = process.env.ADMIN_ID.split(",").map(id => id.trim());
 const WELCOME_IMAGE =
   "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
 
+// LINK CANALE UFFICIALE (CAMBIALO CON IL TUO)
+const CHANNEL_URL = "https://t.me/CapybarOfficial";
+
 /* =====================
    /start
 ===================== */
@@ -27,12 +30,15 @@ bot.onText(/\/start/, (msg) => {
     msg.chat.id,
     WELCOME_IMAGE,
     {
-      caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*
+      caption: `👋 *Benvenuto nel bot ufficiale di Capybar!*
 
 Premi un bottone qui sotto per accedere alle funzioni:`,
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
+          [
+            { text: "📣 Canale", url: CHANNEL_URL }
+          ],
           [
             { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
             { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
@@ -61,8 +67,8 @@ bot.on("callback_query", (query) => {
 
 Scrivi in un unico messaggio:
 
-1️⃣ Nickname  
-2️⃣ Oggetto/i  
+1️⃣ Oggetto/i  
+2️⃣ Nickname  
 3️⃣ Prezzo base  
 4️⃣ Rilancio`,
         { parse_mode: "Markdown" }
@@ -102,8 +108,8 @@ Scrivi in un unico messaggio:
 
 Compila il tuo curriculum seguendo questi punti:
 
-1️⃣ Dati personali: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)  
-2️⃣ Parlaci di te: chi sei, passioni, motivazioni...
+1️⃣ Dati personali: @Telegram, Discord, telefono, nome e ore disponibili  
+2️⃣ Parlaci di te (es: cucina e lavoro)  
 3️⃣ Perché dovremmo sceglierti  
 4️⃣ Esperienze lavorative (se presenti) e se lavori attualmente in un’azienda  
 5️⃣ Competenze: uso della cassa e capacità di cucinare  
@@ -128,10 +134,10 @@ bot.on("message", (msg) => {
 
   const user = msg.from;
 
-  // conferma utente
+  // conferma all’utente
   bot.sendMessage(msg.chat.id, "✅ Modulo inviato correttamente!");
 
-  // invio agli admin
+  // invio a tutti gli admin
   ADMIN_IDS.forEach(adminId => {
     bot.sendMessage(
       adminId,
