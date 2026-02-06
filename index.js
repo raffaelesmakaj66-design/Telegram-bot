@@ -33,34 +33,6 @@ const assistenzaUsers = new Set();
 const adminReplyMap = {};
 
 /* =====================
-   MESSAGGIO INTRODUTTIVO AUTOMATICO
-===================== */
-bot.on("message", (msg) => {
-  if (!msg.text) return;
-
-  // ignoriamo comandi
-  if (msg.text.startsWith("/")) return;
-
-  // solo se l'utente non ha ancora fatto /start
-  if (!usersStarted.has(msg.from.id)) {
-    bot.sendMessage(
-      msg.chat.id,
-      `👋 Benvenuto nel bot ufficiale di CapyBar!
-
-Cosa può fare questo bot:
-- ⚖️ Partecipare alle aste
-- 📄 Consultare il listino prodotti
-- 📝 Effettuare ordini
-- 💼 Inviare la candidatura per lavorare con noi
-- 🆘 Contattare l'assistenza
-- 📣 Accedere al canale ufficiale
-
-Premi /start per iniziare!`
-    );
-  }
-});
-
-/* =====================
    /start
 ===================== */
 bot.onText(/\/start/, (msg) => {
@@ -148,7 +120,7 @@ Scrivi in un unico messaggio:
 Compila il tuo curriculum seguendo questi punti:
 
 1️⃣ Dati personali: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)  
-2️⃣ Parlaci di te: chi sei, passioni...
+2️⃣ Parlaci di te: chi sei, passioni...  
 3️⃣ Perché dovremmo sceglierti  
 4️⃣ Esperienze lavorative (se presenti) e se lavori attualmente in un’azienda  
 5️⃣ Competenze: uso della cassa e capacità di cucinare  
