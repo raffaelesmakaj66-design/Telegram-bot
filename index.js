@@ -102,8 +102,8 @@ Scrivi in un unico messaggio:
 
 Compila il tuo curriculum seguendo questi punti:
 
-1️⃣ Dati personali: @Telegram, Discord, telefono, nome e ore disponibili  
-2️⃣ Parlaci di te  
+1️⃣ Dati personali: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)  
+2️⃣ Parlaci di te: chi sei, passioni, motivazioni...
 3️⃣ Perché dovremmo sceglierti  
 4️⃣ Esperienze lavorative (se presenti) e se lavori attualmente in un’azienda  
 5️⃣ Competenze: uso della cassa e capacità di cucinare  
