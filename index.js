@@ -37,7 +37,8 @@ Premi un bottone qui sotto per accedere alle funzioni:`,
             { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
           ],
           [
-            { text: "📝 Modulo ordinazioni", callback_data: "OPEN_ORDINI" }
+            { text: "📝 Modulo ordinazioni", callback_data: "OPEN_ORDINI" },
+            { text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }
           ]
         ]
       }
@@ -85,6 +86,26 @@ Scrivi in un unico messaggio con i seguenti dati:
 1️⃣ Nickname  
 2️⃣ @ Telegram  
 3️⃣ Prodotti desiderati`,
+        { parse_mode: "Markdown" }
+      );
+      break;
+
+    case "OPEN_CANDIDATURA":
+      bot.sendMessage(
+        chatId,
+        `📝 *Modulo Candidatura Dipendente*
+
+Compila il tuo curriculum seguendo questi punti:
+
+1️⃣ Dati personali: @Telegram, Discord, telefono, nome e ore disponibili  
+2️⃣ Parlaci di te: chi sei, passioni, motivazioni  
+3️⃣ Perché dovremmo sceglierti?  
+4️⃣ Esperienze lavorative (se presenti) e se attualmente lavori in un’azienda  
+5️⃣ Competenze pratiche: uso della cassa, capacità di cucinare  
+6️⃣ Pregi e difetti
+
+📍 *Consegna del curriculum*:  
+Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
         { parse_mode: "Markdown" }
       );
       break;
