@@ -19,11 +19,18 @@ const ADMIN_IDS = process.env.ADMIN_ID.split(",").map(id => id.trim());
 const WELCOME_IMAGE =
   "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
 
-// LINK CANALE UFFICIALE (CAMBIALO CON IL TUO)
+// LINK CANALE UFFICIALE
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
-// MEMO UTENTI CHE HANNO GIA' FATTO /START
+// utenti che hanno già fatto /start
 const usersStarted = new Set();
+
+// utenti in assistenza { chatId: true }
+const assistenzaUsers = new Set();
+
+// mappa per tracciare conversazioni admin ↔ utente
+// { adminId: chatIdUtente }
+const adminReplyMap = {};
 
 /* =====================
    MESSAGGIO INTRODUTTIVO AUTOMATICO
@@ -31,16 +38,14 @@ const usersStarted = new Set();
 bot.on("message", (msg) => {
   if (!msg.text) return;
 
-  // Se è un comando, ignora
+  // ignoriamo comandi
   if (msg.text.startsWith("/")) return;
 
-  // Se l'utente ha già fatto /start, non mostrare introduttivo
-  if (usersStarted.has(msg.from.id)) return;
-
-  // Invia messaggio introduttivo
-  bot.sendMessage(
-    msg.chat.id,
-    `👋 Benvenuto nel bot ufficiale di CapyBar!
+  // solo se l'utente non ha ancora fatto /start
+  if (!usersStarted.has(msg.from.id)) {
+    bot.sendMessage(
+      msg.chat.id,
+      `👋 Benvenuto nel bot ufficiale di CapyBar!
 
 Cosa può fare questo bot:
 - ⚖️ Partecipare alle aste
@@ -51,7 +56,8 @@ Cosa può fare questo bot:
 - 📣 Accedere al canale ufficiale
 
 Premi /start per iniziare!`
-  );
+    );
+  }
 });
 
 /* =====================
@@ -70,24 +76,16 @@ Premi un bottone qui sotto per accedere alle funzioni:`,
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
-          // 📣 Canale
-          [
-            { text: "📣 Canale", url: CHANNEL_URL }
-          ],
-          // ⚖️ Aste | 📄 Listino
+          [{ text: "📣 Canale", url: CHANNEL_URL }],
           [
             { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
             { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
           ],
-          // 📝 Ordina | 🆘 Assistenza
           [
             { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
             { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
           ],
-          // 💼 Candidati dipendente (lungo)
-          [
-            { text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }
-          ]
+          [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
         ]
       }
     }
@@ -163,11 +161,12 @@ Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
       break;
 
     case "OPEN_ASSISTENZA":
+      assistenzaUsers.add(chatId);
       bot.sendMessage(
         chatId,
         `🆘 *Assistenza*
 
-Se hai bisogno di aiuto o supporto contatta un admin direttamente o scrivi qui la tua richiesta.`,
+Scrivi qui il tuo messaggio, ti risponderanno gli admin.`,
         { parse_mode: "Markdown" }
       );
       break;
@@ -177,18 +176,42 @@ Se hai bisogno di aiuto o supporto contatta un admin direttamente o scrivi qui l
 });
 
 /* =====================
-   RICEZIONE MODULI
+   RICEZIONE MESSAGGI
 ===================== */
 bot.on("message", (msg) => {
   if (!msg.text) return;
-  if (msg.text.startsWith("/")) return;
 
+  const chatId = msg.chat.id;
   const user = msg.from;
 
-  // conferma all’utente
-  bot.sendMessage(msg.chat.id, "✅ Modulo inviato correttamente!");
+  // --- ASSISTENZA ---
+  if (assistenzaUsers.has(chatId)) {
+    // invia conferma all'utente
+    bot.sendMessage(chatId, "✅ Messaggio inviato correttamente!");
 
-  // invio a tutti gli admin
+    // invia a tutti gli admin
+    ADMIN_IDS.forEach(adminId => {
+      bot.sendMessage(
+        adminId,
+        `📩 *Nuovo messaggio assistenza da utente*
+
+👤 ${user.first_name} (@${user.username || "nessuno"})
+🆔 ${user.id}
+
+💬 ${msg.text}`,
+        { parse_mode: "Markdown" }
+      );
+
+      // traccia conversazione per risposte
+      adminReplyMap[adminId] = chatId;
+    });
+
+    return; // non prosegue per moduli
+  }
+
+  // --- MODULI NORMALI ---
+  if (msg.text.startsWith("/")) return; // ignora comandi
+  bot.sendMessage(chatId, "✅ Modulo inviato correttamente!");
   ADMIN_IDS.forEach(adminId => {
     bot.sendMessage(
       adminId,
@@ -201,4 +224,13 @@ bot.on("message", (msg) => {
       { parse_mode: "Markdown" }
     );
   });
+
+  // --- RISPOSTE ADMIN ---
+  if (ADMIN_IDS.includes(user.id)) {
+    const targetChatId = adminReplyMap[user.id];
+    if (targetChatId) {
+      bot.sendMessage(targetChatId, `💬 *Risposta admin:*\n${msg.text}`, { parse_mode: "Markdown" });
+      delete adminReplyMap[user.id]; // rimuove mappa dopo risposta
+    }
+  }
 });
