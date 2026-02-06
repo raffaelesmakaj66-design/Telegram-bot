@@ -97,7 +97,7 @@ Scrivi in un unico messaggio con i seguenti dati:
 
 Compila il tuo curriculum seguendo questi punti:
 
-1️⃣ Dati personali: @Telegram, Discord, telefono, nome e ore disponibili  
+1️⃣ Dati personali: @ Telegram, Discord, telefono, nome e ore disponibili  
 2️⃣ Parlaci di te: chi sei, passioni, motivazioni  
 3️⃣ Perché dovremmo sceglierti?  
 4️⃣ Esperienze lavorative (se presenti) e se attualmente lavori in un’azienda  
