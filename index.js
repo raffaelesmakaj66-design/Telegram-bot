@@ -12,11 +12,12 @@ if (!TOKEN || !ADMIN_ID) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-// MULTI-ADMIN (separati da virgola su Railway)
+// MULTI-ADMIN (separati da virgola)
 const ADMIN_IDS = process.env.ADMIN_ID.split(",").map(id => id.trim());
 
-// FILE_ID FOTO BENVENUTO
-const WELCOME_IMAGE = "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
+// FILE_ID IMMAGINE DI BENVENUTO
+const WELCOME_IMAGE =
+  "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
 
 /* =====================
    /start
@@ -26,7 +27,7 @@ bot.onText(/\/start/, (msg) => {
     msg.chat.id,
     WELCOME_IMAGE,
     {
-      caption: `👋 *Benvenuto!*
+      caption: `👋 *Benvenuto nel bot ufficiale di Capybar!*
 
 Premi un bottone qui sotto per accedere alle funzioni:`,
       parse_mode: "Markdown",
@@ -47,18 +48,18 @@ Premi un bottone qui sotto per accedere alle funzioni:`,
 });
 
 /* =====================
-   CALLBACK BOTTONI
+   BOTTONI
 ===================== */
 bot.on("callback_query", (query) => {
   const chatId = query.message.chat.id;
 
-  switch(query.data) {
+  switch (query.data) {
     case "OPEN_ASTA":
       bot.sendMessage(
         chatId,
         `🏷️ *Modulo Asta*
 
-Scrivi in un unico messaggio con i seguenti dati:
+Scrivi in un unico messaggio:
 
 1️⃣ Oggetto/i  
 2️⃣ Nickname  
@@ -71,7 +72,11 @@ Scrivi in un unico messaggio con i seguenti dati:
     case "OPEN_LISTINO":
       bot.sendMessage(
         chatId,
-        `📄 *Listino*\n\nEcco il nostro listino completo:\n- Prodotto A: €10\n- Prodotto B: €15\n- Prodotto C: €20`,
+        `📄 *Listino*
+
+- Prodotto A: €10  
+- Prodotto B: €15  
+- Prodotto C: €20`,
         { parse_mode: "Markdown" }
       );
       break;
@@ -81,7 +86,7 @@ Scrivi in un unico messaggio con i seguenti dati:
         chatId,
         `📝 *Modulo Ordinazioni*
 
-Scrivi in un unico messaggio con i seguenti dati:
+Scrivi in un unico messaggio:
 
 1️⃣ Nickname  
 2️⃣ @ Telegram  
@@ -97,11 +102,11 @@ Scrivi in un unico messaggio con i seguenti dati:
 
 Compila il tuo curriculum seguendo questi punti:
 
-1️⃣ Dati personali: @ Telegram, Discord, telefono, nome e ore disponibili  
-2️⃣ Parlaci di te: chi sei, passioni, motivazioni  
-3️⃣ Perché dovremmo sceglierti?  
-4️⃣ Esperienze lavorative (se presenti) e se attualmente lavori in un’azienda  
-5️⃣ Competenze pratiche: uso della cassa, capacità di cucinare  
+1️⃣ Dati personali: @Telegram, Discord, telefono, nome e ore disponibili  
+2️⃣ Parlaci di te  
+3️⃣ Perché dovremmo sceglierti  
+4️⃣ Esperienze lavorative (se presenti) e se lavori attualmente in un’azienda  
+5️⃣ Competenze: uso della cassa e capacità di cucinare  
 6️⃣ Pregi e difetti
 
 📍 *Consegna del curriculum*:  
@@ -115,7 +120,7 @@ Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
 });
 
 /* =====================
-   RISPOSTA AI MODULI
+   RICEZIONE MODULI
 ===================== */
 bot.on("message", (msg) => {
   if (!msg.text) return;
@@ -123,14 +128,19 @@ bot.on("message", (msg) => {
 
   const user = msg.from;
 
-  // conferma all’utente
+  // conferma utente
   bot.sendMessage(msg.chat.id, "✅ Modulo inviato correttamente!");
 
-  // invio a tutti gli admin
+  // invio agli admin
   ADMIN_IDS.forEach(adminId => {
     bot.sendMessage(
       adminId,
-      `📥 *Nuovo modulo ricevuto*\n\n👤 ${user.first_name} (@${user.username || "nessuno"})\n🆔 ${user.id}\n\n📄 ${msg.text}`,
+      `📥 *Nuovo modulo ricevuto*
+
+👤 ${user.first_name} (@${user.username || "nessuno"})
+🆔 ${user.id}
+
+📄 ${msg.text}`,
       { parse_mode: "Markdown" }
     );
   });
