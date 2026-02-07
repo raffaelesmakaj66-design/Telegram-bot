@@ -5,7 +5,7 @@ import fs from "fs";
 // CONFIG
 // =====================
 const TOKEN = process.env.TELEGRAM_TOKEN;
-const ADMIN_IDS = process.env.ADMIN_ID.split(",").map(id => id.trim());
+const ADMIN_IDS = process.env.ADMIN_ID?.split(",").map(id => Number(id.trim())) || [];
 
 if (!TOKEN || ADMIN_IDS.length === 0) {
   console.error("❌ TELEGRAM_TOKEN o ADMIN_ID mancanti");
@@ -58,6 +58,13 @@ const reviewCooldown = new Map();
 const REVIEW_COOLDOWN_MS = 60 * 1000; // 1 minuto
 
 // =====================
+// HELPERS
+// =====================
+function escapeMarkdown(text) {
+  return text.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
+}
+
+// =====================
 // /start
 // =====================
 bot.onText(/\/start/, (msg) => {
@@ -108,10 +115,8 @@ bot.on("callback_query", (q) => {
 
     reviewCooldown.set(userId, now);
 
-    reviewState.set(userId, {
-      rating,
-      waitingComment: true
-    });
+    // ⭐ Imposto lo stato per il commento
+    reviewState.set(userId, { rating, waitingComment: true });
 
     bot.answerCallbackQuery(q.id, { text: "⭐ Voto registrato!" });
 
@@ -140,11 +145,11 @@ Vuoi lasciare un commento?`,
   if (q.data === "SKIP_REVIEW") {
     const state = reviewState.get(q.from.id);
     if (!state) {
-      bot.answerCallbackQuery(q.id);
+      bot.answerCallbackQuery(q.id, { text: "❌ Stato recensione non trovato", show_alert: true });
       return;
     }
 
-    reviewState.delete(q.from.id);
+    reviewState.delete(q.from.id); // cancello lo stato
     saveReview({ rating: state.rating, comment: null });
 
     const avg = getAverage();
@@ -275,12 +280,11 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const user = msg.from;
 
-  // ⭐ COMMENTO RECENSIONE (PRIMA DI TUTTO)
+  // ⭐ COMMENTO RECENSIONE
   const state = reviewState.get(user.id);
   if (state && state.waitingComment) {
-    reviewState.delete(user.id);
-
-    saveReview({ rating: state.rating, comment: msg.text });
+    reviewState.delete(user.id); // cancello lo stato ora
+    saveReview({ rating: state.rating, comment: escapeMarkdown(msg.text) });
 
     const avg = getAverage();
     const total = loadReviews().length;
@@ -290,7 +294,7 @@ bot.on("message", (msg) => {
       `✅ *Grazie per la recensione!*
 
 ⭐ Voto: *${state.rating}/5*
-💬 Commento: _${msg.text}_
+💬 Commento: _${escapeMarkdown(msg.text)}_
 📊 Media attuale: *${avg}* (${total} voti)`,
       { parse_mode: "Markdown" }
     );
@@ -302,7 +306,7 @@ bot.on("message", (msg) => {
 
 👤 ${user.first_name}
 ⭐ ${state.rating}/5
-💬 ${msg.text}`,
+💬 ${escapeMarkdown(msg.text)}`,
         { parse_mode: "Markdown" }
       );
     });
@@ -312,12 +316,12 @@ bot.on("message", (msg) => {
   // =====================
   // RISPOSTA ADMIN
   // =====================
-  if (ADMIN_IDS.includes(String(user.id))) {
+  if (ADMIN_IDS.includes(user.id)) {
     const target = adminReplyMap[user.id];
     if (target) {
       bot.sendMessage(
         target,
-        `💬 *Risposta assistenza:*\n\n${msg.text}`,
+        `💬 *Risposta assistenza:*\n\n${escapeMarkdown(msg.text)}`,
         { parse_mode: "Markdown" }
       );
       delete adminReplyMap[user.id];
@@ -339,7 +343,7 @@ bot.on("message", (msg) => {
 👤 ${user.first_name} (@${user.username || "nessuno"})
 🆔 ${user.id}
 
-${msg.text}`,
+${escapeMarkdown(msg.text)}`,
         { parse_mode: "Markdown" }
       );
       adminReplyMap[id] = chatId;
@@ -359,7 +363,7 @@ ${msg.text}`,
 👤 ${user.first_name}
 🆔 ${user.id}
 
-${msg.text}`,
+${escapeMarkdown(msg.text)}`,
       { parse_mode: "Markdown" }
     );
   });
