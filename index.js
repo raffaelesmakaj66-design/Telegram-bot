@@ -16,74 +16,79 @@ if (!TOKEN || !SUPER_ADMIN) {
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // =====================
-// FILE E COSTANTI
+// FILE DATI
 // =====================
-const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ";
-const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
-const REVIEWS_FILE = path.join(process.cwd(), "reviews.json");
-const CHATLOG_FILE = path.join(process.cwd(), "chatlog.json");
 const ADMINS_FILE = path.join(process.cwd(), "admins.json");
+const CHATLOG_FILE = path.join(process.cwd(), "chatlog.json");
+const REVIEWS_FILE = path.join(process.cwd(), "reviews.json");
+
+// ======= Creazione file se non esistono =======
+if (!fs.existsSync(ADMINS_FILE)) fs.writeFileSync(ADMINS_FILE, JSON.stringify([SUPER_ADMIN], null, 2));
+if (!fs.existsSync(CHATLOG_FILE)) fs.writeFileSync(CHATLOG_FILE, JSON.stringify([], null, 2));
+if (!fs.existsSync(REVIEWS_FILE)) fs.writeFileSync(REVIEWS_FILE, JSON.stringify([], null, 2));
 
 // =====================
-// HELPERS
+// FUNZIONI UTILI
 // =====================
+const loadAdmins = () => JSON.parse(fs.readFileSync(ADMINS_FILE, "utf8"));
+const saveAdmins = (admins) => fs.writeFileSync(ADMINS_FILE, JSON.stringify(admins, null, 2));
+
+const loadReviews = () => JSON.parse(fs.readFileSync(REVIEWS_FILE, "utf8"));
+const saveReviews = (reviews) => fs.writeFileSync(REVIEWS_FILE, JSON.stringify(reviews, null, 2));
+
+const saveReview = (review) => {
+  const reviews = loadReviews();
+  reviews.push(review);
+  saveReviews(reviews);
+};
+
+const getAverage = () => {
+  const reviews = loadReviews();
+  if (reviews.length === 0) return "0.0";
+  const sum = reviews.reduce((a, r) => a + r.rating, 0);
+  return (sum / reviews.length).toFixed(1);
+};
+
 const escapeMarkdown = (text) => text.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
-const loadJSON = (file, defaultData) => fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : defaultData;
-const saveJSON = (file, data) => fs.writeFileSync(file, JSON.stringify(data, null, 2));
 
 // =====================
 // STATI
 // =====================
-let ADMINS = new Set(loadJSON(ADMINS_FILE, [SUPER_ADMIN]));
-const userState = new Map(); // userId -> tipo modulo ("ASSISTENZA","ORDINE","ASTA","SPONSOR","CANDIDATURA")
-const reviewState = new Map(); // userId -> {rating, chatId, waitingComment}
+const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
-const REVIEW_COOLDOWN_MS = 60*1000;
+const REVIEW_COOLDOWN_MS = 60 * 1000;
 
-// mappa chat tra admin e utente per conversazione assistenza
-const lastMessageMap = new Map(); // userId -> last message sender ("USER"|"ADMIN")
-const adminReplyMap = {}; // adminId -> userId (ultimo utente a cui deve rispondere)
-
-// =====================
-// FUNZIONI RECENSIONI
-// =====================
-const saveReview = (review) => {
-  const reviews = loadJSON(REVIEWS_FILE, []);
-  reviews.push(review);
-  saveJSON(REVIEWS_FILE, reviews);
-};
-
-const getAverage = () => {
-  const reviews = loadJSON(REVIEWS_FILE, []);
-  if (!reviews.length) return "0.0";
-  const sum = reviews.reduce((a,r)=>a+r.rating,0);
-  return (sum/reviews.length).toFixed(1);
-};
+const userState = new Map(); // userId -> tipo modulo
+const adminReplyMap = {};     // adminId -> userId
 
 // =====================
-// LOG CHAT
+// COSTANTI
 // =====================
-const saveChatLog = (entry) => {
-  const logs = loadJSON(CHATLOG_FILE, []);
-  logs.push(entry);
-  saveJSON(CHATLOG_FILE, logs);
-};
+const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ";
+const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
 // =====================
 // /start
 // =====================
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
+
   bot.sendPhoto(chatId, WELCOME_IMAGE, {
-    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei bottoni per continuare:`,
+    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni per continuare:`,
     parse_mode: "Markdown",
     reply_markup: {
       inline_keyboard: [
         [{ text: "📣 Canale", url: CHANNEL_URL }],
-        [{ text: "⚖️ Aste", callback_data: "OPEN_ASTA" }, { text: "📄 Listino", callback_data: "OPEN_LISTINO" }],
-        [{ text: "📝 Ordina", callback_data: "OPEN_ORDINI" }, { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }],
+        [
+          { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
+          { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
+        ],
+        [
+          { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
+          { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
+        ],
         [{ text: "⭐ Lascia una Recensione", callback_data: "OPEN_REVIEW" }],
-        [{ text: "📢 Richiedi Sponsor", callback_data: "OPEN_SPONSOR" }],
+        [{ text: "📢 Richiedi uno Sponsor", callback_data: "OPEN_SPONSOR" }],
         [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
       ]
     }
@@ -94,89 +99,112 @@ bot.onText(/\/start/, (msg) => {
 // CALLBACK QUERY
 // =====================
 bot.on("callback_query", (q) => {
-  const userId = q.from.id;
+  const userId = Number(q.from.id);
   const chatId = q.message.chat.id;
+  const admins = loadAdmins();
 
-  // ⭐ RECENSIONE
+  // ⭐ Rating recensione
   if (q.data.startsWith("RATE_")) {
     const rating = Number(q.data.split("_")[1]);
     const now = Date.now();
     if (now - (reviewCooldown.get(userId) || 0) < REVIEW_COOLDOWN_MS) {
-      bot.answerCallbackQuery(q.id, { text: "⏳ Attendi prima di lasciare un'altra recensione", show_alert: true });
+      bot.answerCallbackQuery(q.id, { text: "⏳ Attendi un po’", show_alert: true });
       return;
     }
+
     reviewCooldown.set(userId, now);
     reviewState.set(userId, { rating, chatId, waitingComment: true });
+
     bot.answerCallbackQuery(q.id, { text: "⭐ Voto registrato!" });
-    bot.sendMessage(chatId, `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`, {
-      reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `SKIP_${rating}` }]] }
-    });
+    bot.sendMessage(chatId,
+      `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`,
+      { reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `SKIP_${rating}` }]] } }
+    );
     return;
   }
 
+  // ⭐ Skip recensione
   if (q.data.startsWith("SKIP_")) {
     const rating = Number(q.data.split("_")[1]);
-    saveReview({ rating, comment: null, userId, timestamp: new Date().toISOString() });
+    saveReview({ rating, comment: null, userId });
 
     const avg = getAverage();
-    const total = loadJSON(REVIEWS_FILE, []).length;
+    const total = loadReviews().length;
 
     bot.answerCallbackQuery(q.id, { text: "Recensione inviata!" });
     bot.sendMessage(chatId,
-      `✅ Recensione inviata correttamente!\n⭐ Voto: ${rating}/5\n📊 Media attuale: ${avg} (${total} voti)`
-    );
+      `✅ Recensione inviata correttamente!\n⭐ Voto: ${rating}/5\n📊 Media attuale: ${avg} (${total} voti)`);
 
-    ADMINS.forEach(id =>
-      bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`)
-    );
+    admins.forEach(id => {
+      bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`);
+    });
 
     reviewState.delete(userId);
     return;
   }
 
+  // =====================
   // MENU
+  // =====================
   switch (q.data) {
     case "OPEN_REVIEW":
-      bot.sendMessage(chatId, "⭐ *Lascia una recensione*\nMetti un voto da 1 a 5", {
+      bot.sendMessage(chatId, `⭐ *Lascia una recensione*\nSeleziona un voto da 1 a 5 stelle ⭐`, {
         parse_mode: "Markdown",
-        reply_markup: { inline_keyboard: [[
-          { text: "⭐ 1", callback_data:"RATE_1" },
-          { text: "⭐ 2", callback_data:"RATE_2" },
-          { text: "⭐ 3", callback_data:"RATE_3" },
-          { text: "⭐ 4", callback_data:"RATE_4" },
-          { text: "⭐ 5", callback_data:"RATE_5" }
-        ]] }
+        reply_markup: {
+          inline_keyboard: [[
+            { text: "⭐ 1", callback_data: "RATE_1" },
+            { text: "⭐ 2", callback_data: "RATE_2" },
+            { text: "⭐ 3", callback_data: "RATE_3" },
+            { text: "⭐ 4", callback_data: "RATE_4" },
+            { text: "⭐ 5", callback_data: "RATE_5" }
+          ]]
+        }
       });
       break;
 
     case "OPEN_LISTINO":
-      bot.sendMessage(chatId, "📄 *Listino Sponsor*\n• Base 1k\n• Medio 2.5k\n• Premium 5k\n• Elite 10k", { parse_mode:"Markdown" });
+      bot.sendMessage(chatId, `📄 *Listino Sponsor*\n• Base → 1k\n• Medio → 2.5k\n• Premium → 5k\n• Elite → 10k`, { parse_mode:"Markdown" });
       break;
 
     case "OPEN_ASTA":
       userState.set(userId, "ASTA");
-      bot.sendMessage(chatId, "🏷️ *Modulo Asta*\n1️⃣ Nickname\n2️⃣ Oggetto/i\n3️⃣ Prezzo base\n4️⃣ Rilancio\n📌 Invia tutto in un unico messaggio", { parse_mode:"Markdown" });
+      bot.sendMessage(chatId,
+        `🏷️ *Modulo Asta*\n\nScrivi in un unico messaggio:\n1️⃣ *Nickname*\n2️⃣ *Oggetto/i*\n3️⃣ *Prezzo base*\n4️⃣ *Rilancio*`,
+        { parse_mode: "Markdown" });
       break;
 
     case "OPEN_ORDINI":
       userState.set(userId, "ORDINE");
-      bot.sendMessage(chatId, "📝 *Modulo Ordini*\n1️⃣ Nickname\n2️⃣ @Telegram\n3️⃣ Prodotti desiderati\n📌 Invia tutto in un unico messaggio", { parse_mode:"Markdown" });
+      bot.sendMessage(chatId,
+        `📝 *Modulo Ordinazioni*\n\nScrivi in un unico messaggio:\n1️⃣ *Nickname*\n2️⃣ *@Telegram*\n3️⃣ *Prodotti desiderati*`,
+        { parse_mode: "Markdown" });
       break;
 
     case "OPEN_ASSISTENZA":
       userState.set(userId, "ASSISTENZA");
-      lastMessageMap.set(userId, "USER");
-      bot.sendMessage(chatId, "🆘 Scrivi il tuo messaggio per l’assistenza", { parse_mode:"Markdown" });
+      bot.sendMessage(chatId,
+        `🆘 *Assistenza*\n\nSe hai bisogno di aiuto o supporto contatta un admin direttamente o scrivi qui la tua richiesta.`,
+        { parse_mode: "Markdown" });
       break;
 
     case "OPEN_SPONSOR":
       userState.set(userId, "SPONSOR");
-      bot.sendMessage(chatId, "📢 Richiesta sponsor\nScrivi tipo, durata, dettagli aggiuntivi seguendo il listino", { parse_mode:"Markdown" });
+      bot.sendMessage(chatId,
+        `📢 *Richiedi uno Sponsor*\nScrivi in un unico messaggio il tipo, durata e dettagli aggiuntivi`,
+        { parse_mode: "Markdown" });
       break;
 
     case "OPEN_CANDIDATURA":
-      userState.set(userId, "CANDIDATURA");
-      bot.sendMessage(chatId, `📝 *Modulo Candidatura Dipendente*\n1️⃣ Dati personali: @Telegram, Discord, telefono, nome e ore disponibili\n2️⃣ Parlaci di te\n3️⃣ Perché dovremmo sceglierti\n4️⃣ Esperienze lavorative\n5️⃣ Competenze\n6️⃣ Pregi e difetti\n📍 Bancarella 8`, { parse_mode:"Markdown" });
+      bot.sendMessage(chatId,
+        `📝 *Modulo Candidatura Dipendente*\n\nCompila il tuo curriculum seguendo questi punti:\n\n` +
+        `1️⃣ *Dati personali*: @ Telegram, Discord, nome, ore totali e settimanali (/tempo)` +
+        `2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni\n` +
+        `3️⃣ *Perché dovremmo sceglierti?*\n` +
+        `4️⃣ *Esperienze lavorative*: se presenti e se lavori attualmente in un’azienda\n` +
+        `5️⃣ *Competenze pratiche*: uso della cassa, capacità di cucinare\n` +
+        `6️⃣ *Pregi e difetti*\n\n` +
+        `📍 *Consegna del curriculum*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
+        { parse_mode: "Markdown" });
       break;
   }
 
@@ -184,90 +212,52 @@ bot.on("callback_query", (q) => {
 });
 
 // =====================
-// MESSAGGI UTENTE / ADMIN
+// MESSAGGI UTENTE
 // =====================
 bot.on("message", (msg) => {
-  if (!msg.text) return;
+  if (!msg.text || msg.text.startsWith("/")) return;
+
   const chatId = msg.chat.id;
-  const userId = msg.from.id;
+  const userId = Number(msg.from.id);
+  const admins = loadAdmins();
 
-  // Commento recensione
-  if (reviewState.has(userId)) {
-    const { rating } = reviewState.get(userId);
+  // COMMENTO RECENSIONE
+  const state = reviewState.get(userId);
+  if (state && state.waitingComment) {
     reviewState.delete(userId);
-    saveReview({ rating, comment: escapeMarkdown(msg.text), userId, timestamp: new Date().toISOString() });
-    const avg = getAverage();
-    const total = loadJSON(REVIEWS_FILE, []).length;
+    saveReview({ rating: state.rating, comment: escapeMarkdown(msg.text), userId });
 
-    bot.sendMessage(chatId, `✅ Recensione inviata correttamente!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escapeMarkdown(msg.text)}\n📊 Media: ${avg} (${total} voti)`);
-    ADMINS.forEach(id =>
-      bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escapeMarkdown(msg.text)}`, { parse_mode:"Markdown" })
-    );
+    const avg = getAverage();
+    const total = loadReviews().length;
+
+    bot.sendMessage(chatId,
+      `✅ Recensione inviata correttamente!\n⭐ Voto: ${state.rating}/5\n💬 Commento: ${escapeMarkdown(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
+
+    admins.forEach(id => {
+      bot.sendMessage(id,
+        `⭐ Nuova recensione\n👤 ${msg.from.first_name}\n⭐ ${state.rating}/5\n💬 ${escapeMarkdown(msg.text)}`,
+        { parse_mode: "Markdown" });
+    });
     return;
   }
 
   // MODULI / ASSISTENZA
-  if (userState.has(userId)) {
-    const type = userState.get(userId);
+  const currentState = userState.get(userId);
+  if (currentState) {
     userState.delete(userId);
-    lastMessageMap.set(userId, "USER");
 
-    bot.sendMessage(chatId, type==="ASSISTENZA" ? "✅ Messaggio inviato con successo!" : "✅ Modulo inviato con successo!");
+    let responseText = currentState === "ASSISTENZA"
+      ? "✅ Messaggio inviato correttamente!"
+      : "✅ Modulo inviato con successo!";
 
-    ADMINS.forEach(adminId => {
-      bot.sendMessage(adminId, `📩 *${type}*\n👤 ${msg.from.first_name} (@${msg.from.username||"nessuno"})\n🆔 ${userId}\n\n${escapeMarkdown(msg.text)}`, { parse_mode:"Markdown" });
-      adminReplyMap[adminId] = userId; // collega admin → utente
+    bot.sendMessage(chatId, responseText);
+
+    admins.forEach(id => {
+      bot.sendMessage(id,
+        `📩 *${currentState}*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${userId}\n\n${escapeMarkdown(msg.text)}`,
+        { parse_mode: "Markdown" }
+      );
+      adminReplyMap[id] = userId; // collega admin → utente
     });
-
-    saveChatLog({ type, userId, text: msg.text, timestamp: new Date().toISOString() });
-    return;
   }
-
-  // RISPOSTA ADMIN
-  if (ADMINS.has(userId) && adminReplyMap[userId]) {
-    const targetUser = adminReplyMap[userId];
-    if (!lastMessageMap.has(targetUser) || lastMessageMap.get(targetUser) !== "USER") return;
-
-    bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escapeMarkdown(msg.text)}`, { parse_mode:"Markdown" });
-    bot.sendMessage(chatId, "✅ Messaggio inviato con successo!");
-    lastMessageMap.set(targetUser, "ADMIN");
-
-    // Tutti gli admin vedono la risposta
-    ADMINS.forEach(adminId => {
-      if (adminId!==userId)
-        bot.sendMessage(adminId, `💬 *${msg.from.first_name} ha risposto a ${targetUser}:*\n${escapeMarkdown(msg.text)}`, { parse_mode:"Markdown" });
-    });
-
-    saveChatLog({ type:"admin_reply", adminId:userId, userId:targetUser, text:msg.text, timestamp:new Date().toISOString() });
-    return;
-  }
-});
-
-// =====================
-// COMANDI ADMIN / SUPER ADMIN
-// =====================
-
-bot.onText(/\/id/, (msg) => {
-  bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
-});
-
-// /admin add
-bot.onText(/\/admin add (\d+)/, (msg, match) => {
-  const fromId = msg.from.id;
-  const newAdmin = Number(match[1]);
-  if (fromId!==SUPER_ADMIN) return bot.sendMessage(msg.chat.id,"❌ Solo il Super Admin può usare questo comando.");
-  ADMINS.add(newAdmin);
-  saveJSON(ADMINS_FILE, Array.from(ADMINS));
-  bot.sendMessage(msg.chat.id, `✅ Utente ${newAdmin} aggiunto come admin.`);
-});
-
-// /admin remove
-bot.onText(/\/admin remove (\d+)/, (msg, match) => {
-  const fromId = msg.from.id;
-  const removeAdmin = Number(match[1]);
-  if (fromId!==SUPER_ADMIN) return bot.sendMessage(msg.chat.id,"❌ Solo il Super Admin può usare questo comando.");
-  if (removeAdmin===SUPER_ADMIN) return bot.sendMessage(msg.chat.id,"❌ Non puoi rimuovere il Super Admin.");
-  ADMINS.delete(removeAdmin);
-  saveJSON(ADMINS_FILE, Array.from(ADMINS));
-  bot.sendMessage(msg.chat.id, `✅ Utente ${removeAdmin} rimosso dagli admin.`);
 });
