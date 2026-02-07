@@ -28,9 +28,9 @@ const DATA_FILE = path.join(process.cwd(), "chatlog.json");
 const reviewState = new Map();        // userId -> { rating, chatId }
 const reviewCooldown = new Map();
 const userState = new Map();          // userId -> tipo modulo
-const pendingUsers = new Map();       // userId -> boolean
 const adminReplyMap = {};             // adminId -> userId
 const ADMINS = new Set([SUPER_ADMIN]);
+const pendingReplies = new Map();     // userId -> Set(adminId) che devono ancora rispondere
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
 // =====================
@@ -105,38 +105,39 @@ bot.on("callback_query", (q) => {
   }
 
   // MENU
-  if (q.data === "OPEN_REVIEW") {
-    bot.sendMessage(chatId, "⭐ Scegli un voto:", {
-      reply_markup: { inline_keyboard: [[1,2,3,4,5].map(n => ({ text:`⭐ ${n}`, callback_data:`RATE_${n}` }))] }
-    });
-  }
+  switch(q.data) {
+    case "OPEN_REVIEW":
+      bot.sendMessage(chatId, "⭐ Scegli un voto:", {
+        reply_markup: { inline_keyboard: [[1,2,3,4,5].map(n => ({ text:`⭐ ${n}`, callback_data:`RATE_${n}` }))] }
+      });
+      break;
 
-  if (q.data === "OPEN_LISTINO") {
-    bot.sendMessage(chatId, "*Listino Sponsor*\n• Base 1k\n• Medio 2.5k\n• Premium 5k\n• Elite 10k", { parse_mode:"Markdown" });
-  }
+    case "OPEN_LISTINO":
+      bot.sendMessage(chatId, "*Listino Sponsor*\n• Base 1k\n• Medio 2.5k\n• Premium 5k\n• Elite 10k", { parse_mode:"Markdown" });
+      break;
 
-  if (q.data === "OPEN_ASTA") {
-    userState.set(userId, "ASTA");
-    bot.sendMessage(chatId, "*Modulo Asta*\n1️⃣ Nickname\n2️⃣ Oggetto\n3️⃣ Prezzo base\n4️⃣ Rilancio", { parse_mode:"Markdown" });
-  }
+    case "OPEN_ASTA":
+      userState.set(userId, "ASTA");
+      bot.sendMessage(chatId, "*Modulo Asta*\n1️⃣ Nickname\n2️⃣ Oggetto\n3️⃣ Prezzo base\n4️⃣ Rilancio", { parse_mode:"Markdown" });
+      break;
 
-  if (q.data === "OPEN_ORDINI") {
-    userState.set(userId, "ORDINE");
-    bot.sendMessage(chatId, "*Modulo Ordini*\n1️⃣ Nickname\n2️⃣ @Telegram\n3️⃣ Prodotti", { parse_mode:"Markdown" });
-  }
+    case "OPEN_ORDINI":
+      userState.set(userId, "ORDINE");
+      bot.sendMessage(chatId, "*Modulo Ordini*\n1️⃣ Nickname\n2️⃣ @Telegram\n3️⃣ Prodotti", { parse_mode:"Markdown" });
+      break;
 
-  if (q.data === "OPEN_ASSISTENZA") {
-    userState.set(userId, "ASSISTENZA");
-    bot.sendMessage(chatId, "🆘 Scrivi il messaggio per l’assistenza");
-  }
+    case "OPEN_ASSISTENZA":
+      userState.set(userId, "ASSISTENZA");
+      bot.sendMessage(chatId, "🆘 Scrivi il messaggio per l’assistenza");
+      break;
 
-  if (q.data === "OPEN_SPONSOR") {
-    userState.set(userId, "SPONSOR");
-    bot.sendMessage(chatId, "📢 Scrivi la richiesta sponsor");
-  }
+    case "OPEN_SPONSOR":
+      userState.set(userId, "SPONSOR");
+      bot.sendMessage(chatId, "📢 Scrivi la richiesta sponsor");
+      break;
 
-  if (q.data === "OPEN_CANDIDATURA") {
-    bot.sendMessage(chatId,
+    case "OPEN_CANDIDATURA":
+      bot.sendMessage(chatId,
 `📝 *Come fare il curriculum*
 1️⃣ Dati personali
 2️⃣ Parlaci di te
@@ -146,6 +147,7 @@ bot.on("callback_query", (q) => {
 6️⃣ Pregi e difetti
 
 📍 Bancarella 8`, { parse_mode:"Markdown" });
+      break;
   }
 
   bot.answerCallbackQuery(q.id);
@@ -178,38 +180,44 @@ bot.on("message", (msg) => {
     const type = userState.get(userId);
     userState.delete(userId);
 
+    // Imposto chi deve rispondere
+    pendingReplies.set(userId, new Set(ADMINS));
+
     bot.sendMessage(chatId, type === "ASSISTENZA"
-      ? "✅ Messaggio ricevuto! Un admin risponderà a breve."
+      ? "✅ Messaggio ricevuto! Un admin può rispondere se vuole."
       : "✅ Modulo inviato con successo!");
 
     getAllAdmins().forEach(id => {
       bot.sendMessage(id,
-        `📩 *${type}*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escape(msg.text)}`,
+        `📩 *${type}*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escape(msg.text)}\n\n🟢 Puoi rispondere usando questo messaggio.`,
         { parse_mode:"Markdown" }
       );
-      adminReplyMap[id] = chatId; // collega admin → utente
-      ADMINS.add(id);
+      adminReplyMap[id] = userId;
     });
+    return;
   }
-});
 
-// =====================
-// RISPOSTA ADMIN CLICCANDO "RISPOSTA"
-// =====================
-bot.on("message", (msg) => {
-  const adminId = msg.from.id;
-  if (!ADMINS.has(adminId)) return;
-  const targetUser = adminReplyMap[adminId];
-  if (!targetUser || msg.text.startsWith("/")) return;
+  // RISPOSTA ADMIN
+  if (ADMINS.has(userId)) {
+    const target = adminReplyMap[userId];
+    if (!target) return;
 
-  bot.sendMessage(targetUser,
-    `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
-    { parse_mode:"Markdown" }
-  );
+    bot.sendMessage(target,
+      `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
+      { parse_mode:"Markdown" }
+    );
 
-  bot.sendMessage(adminId, "✅ Risposta inviata all’utente");
-  delete adminReplyMap[adminId];
-  saveLog({ type:"admin_reply", adminId, userId: targetUser, text: msg.text, timestamp: new Date().toISOString() });
+    bot.sendMessage(userId, "✅ Risposta inviata all’utente");
+
+    // Rimuovo l'admin dal set dei pending
+    const pendingSet = pendingReplies.get(target);
+    if (pendingSet) {
+      pendingSet.delete(userId);
+      if (pendingSet.size === 0) pendingReplies.delete(target);
+    }
+
+    saveLog({ type:"admin_reply", adminId:userId, userId:target, text:msg.text, timestamp: new Date().toISOString() });
+  }
 });
 
 // =====================
