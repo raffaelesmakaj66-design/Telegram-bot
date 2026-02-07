@@ -165,7 +165,7 @@ Scrivi in un unico messaggio:
 Scrivi in un unico messaggio:
 
 1️⃣ *Nickname*  
-2️⃣ *@Telegram*  
+2️⃣ *@ Telegram*  
 3️⃣ *Prodotti desiderati*`,
       { parse_mode:"Markdown" });
       break;
@@ -195,7 +195,7 @@ Consulta il nostro listino completo e scrivi la tua richiesta`,
 
 Compila il tuo curriculum seguendo questi punti:
 
-1️⃣ *Dati personali*: @Telegram, Discord, telefono, nome e ore disponibili  
+1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome e ore disponibili  
 2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni  
 3️⃣ *Perché dovremmo sceglierti?*  
 4️⃣ *Esperienze lavorative*: se presenti e se attualmente lavori in un’azienda  
