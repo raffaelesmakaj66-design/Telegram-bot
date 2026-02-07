@@ -27,8 +27,7 @@ if (!fs.existsSync(REVIEWS_FILE)) {
   fs.writeFileSync(REVIEWS_FILE, JSON.stringify([]));
 }
 
-const loadReviews = () =>
-  JSON.parse(fs.readFileSync(REVIEWS_FILE, "utf8"));
+const loadReviews = () => JSON.parse(fs.readFileSync(REVIEWS_FILE, "utf8"));
 
 const saveReview = (review) => {
   const reviews = loadReviews();
@@ -95,13 +94,13 @@ bot.onText(/\/start/, (msg) => {
 // =====================
 bot.on("callback_query", (q) => {
   const chatId = q.message.chat.id;
+  const userId = Number(q.from.id);
 
   // =====================
   // ⭐ CLICK STELLE
   // =====================
   if (q.data.startsWith("RATE_")) {
     const rating = Number(q.data.split("_")[1]);
-    const userId = q.from.id;
     const now = Date.now();
 
     const last = reviewCooldown.get(userId) || 0;
@@ -143,20 +142,19 @@ Vuoi lasciare un commento?`,
   // ⏭️ SKIP COMMENTO
   // =====================
   if (q.data === "SKIP_REVIEW") {
-    const state = reviewState.get(q.from.id);
+    const state = reviewState.get(userId);
     if (!state) {
       bot.answerCallbackQuery(q.id, { text: "❌ Stato recensione non trovato", show_alert: true });
       return;
     }
 
-    reviewState.delete(q.from.id); // cancello lo stato
+    reviewState.delete(userId);
     saveReview({ rating: state.rating, comment: null });
 
     const avg = getAverage();
     const total = loadReviews().length;
 
     bot.answerCallbackQuery(q.id, { text: "Recensione inviata!" });
-
     bot.sendMessage(
       chatId,
       `✅ *Grazie per la recensione!*
@@ -278,12 +276,12 @@ bot.on("message", (msg) => {
   if (!msg.text || msg.text.startsWith("/")) return;
 
   const chatId = msg.chat.id;
-  const user = msg.from;
+  const userId = Number(msg.from.id);
 
   // ⭐ COMMENTO RECENSIONE
-  const state = reviewState.get(user.id);
+  const state = reviewState.get(userId);
   if (state && state.waitingComment) {
-    reviewState.delete(user.id); // cancello lo stato ora
+    reviewState.delete(userId);
     saveReview({ rating: state.rating, comment: escapeMarkdown(msg.text) });
 
     const avg = getAverage();
@@ -304,7 +302,7 @@ bot.on("message", (msg) => {
         id,
         `⭐ *Nuova recensione*
 
-👤 ${user.first_name}
+👤 ${msg.from.first_name}
 ⭐ ${state.rating}/5
 💬 ${escapeMarkdown(msg.text)}`,
         { parse_mode: "Markdown" }
@@ -316,15 +314,15 @@ bot.on("message", (msg) => {
   // =====================
   // RISPOSTA ADMIN
   // =====================
-  if (ADMIN_IDS.includes(user.id)) {
-    const target = adminReplyMap[user.id];
+  if (ADMIN_IDS.includes(userId)) {
+    const target = adminReplyMap[userId];
     if (target) {
       bot.sendMessage(
         target,
         `💬 *Risposta assistenza:*\n\n${escapeMarkdown(msg.text)}`,
         { parse_mode: "Markdown" }
       );
-      delete adminReplyMap[user.id];
+      delete adminReplyMap[userId];
     }
     return;
   }
@@ -340,8 +338,8 @@ bot.on("message", (msg) => {
         id,
         `📩 *Messaggio assistenza*
 
-👤 ${user.first_name} (@${user.username || "nessuno"})
-🆔 ${user.id}
+👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})
+🆔 ${msg.from.id}
 
 ${escapeMarkdown(msg.text)}`,
         { parse_mode: "Markdown" }
@@ -360,8 +358,8 @@ ${escapeMarkdown(msg.text)}`,
       id,
       `📥 *Nuovo modulo*
 
-👤 ${user.first_name}
-🆔 ${user.id}
+👤 ${msg.from.first_name}
+🆔 ${msg.from.id}
 
 ${escapeMarkdown(msg.text)}`,
       { parse_mode: "Markdown" }
