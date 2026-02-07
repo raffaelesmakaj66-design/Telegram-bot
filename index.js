@@ -72,8 +72,8 @@ bot.onText(/\/start/, (msg) => {
           { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
           { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
         ],
-        [{ text: "⭐ Lascia una Recensione", callback_data: "OPEN_REVIEW" }],
-        [{ text: "📢 Richiedi uno Sponsor", callback_data: "OPEN_SPONSOR" }],
+        [{ text: "⭐ Recensione", callback_data: "OPEN_REVIEW" }],
+        [{ text: "⭐ Sponsor", callback_data: "OPEN_SPONSOR" }],
         [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
       ]
     }
@@ -152,7 +152,40 @@ bot.on("callback_query", (q) => {
         }
       });
       break;
-    // qui puoi aggiungere altri menu come OPEN_LISTINO, OPEN_ASTA, ecc.
+
+    case "OPEN_LISTINO":
+      bot.sendMessage(chatId,
+        `📄 *Listino Sponsor*\n• Base → 1k\n• Medio → 2.5k\n• Premium → 5k\n• Elite → 10k`,
+        { parse_mode: "Markdown" });
+      break;
+
+    case "OPEN_ASTA":
+      bot.sendMessage(chatId,
+        `🏷️ *Modulo Asta*\n1️⃣ Oggetto/i\n2️⃣ Nickname\n3️⃣ Prezzo base\n4️⃣ Rilancio`,
+        { parse_mode: "Markdown" });
+      break;
+
+    case "OPEN_ORDINI":
+      bot.sendMessage(chatId,
+        `📝 *Modulo Ordini*\n1️⃣ Nickname\n2️⃣ @ Telegram\n3️⃣ Prodotti desiderati`,
+        { parse_mode: "Markdown" });
+      break;
+
+    case "OPEN_ASSISTENZA":
+      bot.sendMessage(chatId, "🆘 Scrivi il tuo messaggio per l’assistenza.");
+      break;
+
+    case "OPEN_SPONSOR":
+      bot.sendMessage(chatId,
+        `⭐ *Sponsor*\n• Base → 1k\n• Medio → 2.5k\n• Premium → 5k\n• Elite → 10k`,
+        { parse_mode: "Markdown" });
+      break;
+
+    case "OPEN_CANDIDATURA":
+      bot.sendMessage(chatId,
+        `💼 *Candidatura*\n1️⃣ Dati personali\n2️⃣ Parlaci di te (passioni, carattere…)\n3️⃣ Perché dovremmo sceglierti\n4️⃣ Esperienze lavorative\n5️⃣ Competenze\n6️⃣ Pregi e difetti`,
+        { parse_mode: "Markdown" });
+      break;
   }
 
   bot.answerCallbackQuery(q.id);
