@@ -46,9 +46,13 @@ const getAverage = () => {
 // =====================
 // STATI
 // =====================
-const assistenzaUsers = new Set();      // utenti in assistenza
-const adminReplyMap = {};               // admin -> utente
-const pendingReviews = new Map();       // userId -> rating
+const assistenzaUsers = new Set();        // utenti in assistenza
+const adminReplyMap = {};                 // admin -> utente
+const pendingReviews = new Map();         // userId -> rating
+
+// ⭐ Anti-spam SOLO recensioni
+const reviewCooldown = new Map();         // userId -> timestamp
+const REVIEW_COOLDOWN_MS = 60 * 1000;     // 1 minuto
 
 // =====================
 // /start
@@ -82,12 +86,23 @@ bot.onText(/\/start/, (msg) => {
 bot.on("callback_query", (q) => {
   const chatId = q.message.chat.id;
 
-  // ⭐ VOTO
+  // ⭐ CLICK STELLE (ANTI-SPAM QUI)
   if (q.data.startsWith("RATE_")) {
     const rating = Number(q.data.split("_")[1]);
     const userId = q.from.id;
+    const now = Date.now();
 
-    // chiude SUBITO il "Carico..."
+    const last = reviewCooldown.get(userId) || 0;
+    if (now - last < REVIEW_COOLDOWN_MS) {
+      bot.answerCallbackQuery(q.id, {
+        text: "⏳ Attendi prima di lasciare un’altra recensione",
+        show_alert: true
+      });
+      return;
+    }
+
+    reviewCooldown.set(userId, now);
+
     bot.answerCallbackQuery(q.id, {
       text: "⭐ Voto registrato!",
       show_alert: false
@@ -133,7 +148,7 @@ Vuoi lasciare anche un *commento*?`,
 
     bot.sendMessage(
       chatId,
-      `✅ *Recensione completata*
+      `✅ *Grazie per la recensione!*
 
 ⭐ Voto: *${rating}/5*
 📊 Media attuale: *${avg}* (${total} voti)`,
@@ -160,12 +175,12 @@ Vuoi lasciare anche un *commento*?`,
     case "OPEN_SPONSOR":
       bot.sendMessage(
         chatId,
-        `📄 *Listino*
+        `📄 *Listino Sponsor*
 
-• Sponsor base → *1k*
-• Sponsor medio → *2.5k*
-• Sponsor premium → *5k*
-• Sponsor elite → *10k*`,
+• Base → *1k*
+• Medio → *2.5k*
+• Premium → *5k*
+• Elite → *10k*`,
         { parse_mode: "Markdown" }
       );
       break;
@@ -252,7 +267,7 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const user = msg.from;
 
-  // COMMENTO RECENSIONE
+  // ⭐ COMMENTO RECENSIONE (PRIMA DI TUTTO)
   if (pendingReviews.has(user.id)) {
     const rating = pendingReviews.get(user.id);
     pendingReviews.delete(user.id);
@@ -268,7 +283,7 @@ bot.on("message", (msg) => {
 
 ⭐ Voto: *${rating}/5*
 💬 Commento: _${msg.text}_
-📊 Media: *${avg}* (${total} voti)`,
+📊 Media attuale: *${avg}* (${total} voti)`,
       { parse_mode: "Markdown" }
     );
 
@@ -288,13 +303,11 @@ bot.on("message", (msg) => {
 
   // RISPOSTA ADMIN
   if (ADMIN_IDS.includes(String(user.id))) {
-    const targetUser = adminReplyMap[user.id];
-    if (targetUser) {
+    const target = adminReplyMap[user.id];
+    if (target) {
       bot.sendMessage(
-        targetUser,
-        `💬 *Risposta assistenza:*
-
-${msg.text}`,
+        target,
+        `💬 *Risposta assistenza:*\n\n${msg.text}`,
         { parse_mode: "Markdown" }
       );
       delete adminReplyMap[user.id];
