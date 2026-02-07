@@ -176,7 +176,7 @@ bot.on("callback_query", (q) => {
     case "OPEN_ORDINI":
       userState.set(userId, "ORDINE");
       bot.sendMessage(chatId,
-        `📝 *Modulo Ordinazioni*\n\nScrivi in un unico messaggio:\n1️⃣ *Nickname*\n2️⃣ *@Telegram*\n3️⃣ *Prodotti desiderati*`,
+        `📝 *Modulo Ordinazioni*\n\nScrivi in un unico messaggio:\n1️⃣ *Nickname*\n2️⃣ *@ Telegram*\n3️⃣ *Prodotti desiderati*`,
         { parse_mode: "Markdown" });
       break;
 
@@ -197,7 +197,7 @@ bot.on("callback_query", (q) => {
     case "OPEN_CANDIDATURA":
       bot.sendMessage(chatId,
         `📝 *Modulo Candidatura Dipendente*\n\nCompila il tuo curriculum seguendo questi punti:\n\n` +
-        `1️⃣ *Dati personali*: @ Telegram, Discord, nome, ore totali e settimanali (/tempo)` +
+        `1️⃣ *Dati personali*: @ Telegram, Discord, nome, ore totali e settimanali (/tempo)\n` +
         `2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni\n` +
         `3️⃣ *Perché dovremmo sceglierti?*\n` +
         `4️⃣ *Esperienze lavorative*: se presenti e se lavori attualmente in un’azienda\n` +
