@@ -39,9 +39,7 @@ const getAverage = () => {
 // =====================
 // STATI
 // =====================
-const assistenzaUsers = new Set();
-const adminReplyMap = {};
-const reviewState = new Map(); // userId -> { rating, waitingComment }
+const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
@@ -80,8 +78,8 @@ bot.onText(/\/start/, (msg) => {
 // CALLBACK QUERY
 // =====================
 bot.on("callback_query", (q) => {
-  const chatId = q.message?.chat?.id || q.from.id;
   const userId = Number(q.from.id);
+  const chatId = q.message?.chat?.id || q.from.id;
 
   // ⭐ Rating
   if (q.data.startsWith("RATE_")) {
@@ -95,17 +93,17 @@ bot.on("callback_query", (q) => {
     }
 
     reviewCooldown.set(userId, now);
-    reviewState.set(userId, { rating, waitingComment: true });
+    // salvo stato per commento con chatId
+    reviewState.set(userId, { rating, chatId, waitingComment: true });
 
     bot.answerCallbackQuery(q.id, { text: "⭐ Voto registrato!" });
 
+    // Skip con rating incorporato
     bot.sendMessage(chatId,
       `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`,
       {
         reply_markup: {
-          inline_keyboard: [[
-            { text: "⏭️ Skip", callback_data: `SKIP_${rating}` }
-          ]]
+          inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `SKIP_${rating}` }]]
         }
       }
     );
@@ -128,6 +126,7 @@ bot.on("callback_query", (q) => {
       bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`);
     });
 
+    // cancello eventuale stato
     reviewState.delete(userId);
     return;
   }
@@ -195,7 +194,6 @@ bot.on("callback_query", (q) => {
 bot.on("message", (msg) => {
   if (!msg.text || msg.text.startsWith("/")) return;
   const userId = Number(msg.from.id);
-  const chatId = msg.chat.id;
   const state = reviewState.get(userId);
 
   if (state && state.waitingComment) {
@@ -205,7 +203,7 @@ bot.on("message", (msg) => {
     const avg = getAverage();
     const total = loadReviews().length;
 
-    bot.sendMessage(chatId,
+    bot.sendMessage(state.chatId,
       `✅ Recensione inviata correttamente!\n⭐ Voto: ${state.rating}/5\n💬 Commento: ${escapeMarkdown(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
 
     ADMIN_IDS.forEach(id => {
