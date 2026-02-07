@@ -46,13 +46,16 @@ const getAverage = () => {
 // =====================
 // STATI
 // =====================
-const assistenzaUsers = new Set();        // utenti in assistenza
-const adminReplyMap = {};                 // admin -> utente
-const pendingReviews = new Map();         // userId -> rating
+const assistenzaUsers = new Set();          // utenti in assistenza
+const adminReplyMap = {};                   // admin -> utente
+
+// ⭐ Stato recensione stabile
+// userId -> { rating, waitingComment }
+const reviewState = new Map();
 
 // ⭐ Anti-spam SOLO recensioni
-const reviewCooldown = new Map();         // userId -> timestamp
-const REVIEW_COOLDOWN_MS = 60 * 1000;     // 1 minuto
+const reviewCooldown = new Map();
+const REVIEW_COOLDOWN_MS = 60 * 1000; // 1 minuto
 
 // =====================
 // /start
@@ -86,7 +89,9 @@ bot.onText(/\/start/, (msg) => {
 bot.on("callback_query", (q) => {
   const chatId = q.message.chat.id;
 
-  // ⭐ CLICK STELLE (ANTI-SPAM QUI)
+  // =====================
+  // ⭐ CLICK STELLE
+  // =====================
   if (q.data.startsWith("RATE_")) {
     const rating = Number(q.data.split("_")[1]);
     const userId = q.from.id;
@@ -103,12 +108,12 @@ bot.on("callback_query", (q) => {
 
     reviewCooldown.set(userId, now);
 
-    bot.answerCallbackQuery(q.id, {
-      text: "⭐ Voto registrato!",
-      show_alert: false
+    reviewState.set(userId, {
+      rating,
+      waitingComment: true
     });
 
-    pendingReviews.set(userId, rating);
+    bot.answerCallbackQuery(q.id, { text: "⭐ Voto registrato!" });
 
     bot.sendMessage(
       chatId,
@@ -116,7 +121,7 @@ bot.on("callback_query", (q) => {
 
 ⭐ Voto: *${rating}/5*
 
-Vuoi lasciare anche un *commento*?`,
+Vuoi lasciare un commento?`,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -129,17 +134,18 @@ Vuoi lasciare anche un *commento*?`,
     return;
   }
 
+  // =====================
   // ⏭️ SKIP COMMENTO
+  // =====================
   if (q.data === "SKIP_REVIEW") {
-    const userId = q.from.id;
-    const rating = pendingReviews.get(userId);
-    if (!rating) {
+    const state = reviewState.get(q.from.id);
+    if (!state) {
       bot.answerCallbackQuery(q.id);
       return;
     }
 
-    pendingReviews.delete(userId);
-    saveReview({ rating, comment: null });
+    reviewState.delete(q.from.id);
+    saveReview({ rating: state.rating, comment: null });
 
     const avg = getAverage();
     const total = loadReviews().length;
@@ -150,7 +156,7 @@ Vuoi lasciare anche un *commento*?`,
       chatId,
       `✅ *Grazie per la recensione!*
 
-⭐ Voto: *${rating}/5*
+⭐ Voto: *${state.rating}/5*
 📊 Media attuale: *${avg}* (${total} voti)`,
       { parse_mode: "Markdown" }
     );
@@ -161,7 +167,7 @@ Vuoi lasciare anche un *commento*?`,
         `⭐ *Nuova recensione*
 
 👤 ${q.from.first_name}
-⭐ ${rating}/5
+⭐ ${state.rating}/5
 💬 Nessun commento`,
         { parse_mode: "Markdown" }
       );
@@ -169,8 +175,31 @@ Vuoi lasciare anche un *commento*?`,
     return;
   }
 
-  // ===== MENU =====
+  // =====================
+  // MENU
+  // =====================
   switch (q.data) {
+    case "OPEN_REVIEW":
+      bot.sendMessage(
+        chatId,
+        `⭐ *Lascia una recensione*
+
+Seleziona un voto da *1 a 5 stelle* ⭐`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "⭐ 1", callback_data: "RATE_1" },
+              { text: "⭐ 2", callback_data: "RATE_2" },
+              { text: "⭐ 3", callback_data: "RATE_3" },
+              { text: "⭐ 4", callback_data: "RATE_4" },
+              { text: "⭐ 5", callback_data: "RATE_5" }
+            ]]
+          }
+        }
+      );
+      break;
+
     case "OPEN_LISTINO":
     case "OPEN_SPONSOR":
       bot.sendMessage(
@@ -232,27 +261,6 @@ Bancarella 8 – coordinate -505 64 22, davanti all’ospedale`,
         { parse_mode: "Markdown" }
       );
       break;
-
-    case "OPEN_REVIEW":
-      bot.sendMessage(
-        chatId,
-        `⭐ *Lascia una recensione*
-
-Seleziona un voto da *1 a 5 stelle* ⭐`,
-        {
-          parse_mode: "Markdown",
-          reply_markup: {
-            inline_keyboard: [[
-              { text: "⭐ 1", callback_data: "RATE_1" },
-              { text: "⭐ 2", callback_data: "RATE_2" },
-              { text: "⭐ 3", callback_data: "RATE_3" },
-              { text: "⭐ 4", callback_data: "RATE_4" },
-              { text: "⭐ 5", callback_data: "RATE_5" }
-            ]]
-          }
-        }
-      );
-      break;
   }
 
   bot.answerCallbackQuery(q.id);
@@ -268,11 +276,11 @@ bot.on("message", (msg) => {
   const user = msg.from;
 
   // ⭐ COMMENTO RECENSIONE (PRIMA DI TUTTO)
-  if (pendingReviews.has(user.id)) {
-    const rating = pendingReviews.get(user.id);
-    pendingReviews.delete(user.id);
+  const state = reviewState.get(user.id);
+  if (state && state.waitingComment) {
+    reviewState.delete(user.id);
 
-    saveReview({ rating, comment: msg.text });
+    saveReview({ rating: state.rating, comment: msg.text });
 
     const avg = getAverage();
     const total = loadReviews().length;
@@ -281,7 +289,7 @@ bot.on("message", (msg) => {
       chatId,
       `✅ *Grazie per la recensione!*
 
-⭐ Voto: *${rating}/5*
+⭐ Voto: *${state.rating}/5*
 💬 Commento: _${msg.text}_
 📊 Media attuale: *${avg}* (${total} voti)`,
       { parse_mode: "Markdown" }
@@ -293,7 +301,7 @@ bot.on("message", (msg) => {
         `⭐ *Nuova recensione*
 
 👤 ${user.first_name}
-⭐ ${rating}/5
+⭐ ${state.rating}/5
 💬 ${msg.text}`,
         { parse_mode: "Markdown" }
       );
@@ -301,7 +309,9 @@ bot.on("message", (msg) => {
     return;
   }
 
+  // =====================
   // RISPOSTA ADMIN
+  // =====================
   if (ADMIN_IDS.includes(String(user.id))) {
     const target = adminReplyMap[user.id];
     if (target) {
@@ -315,7 +325,9 @@ bot.on("message", (msg) => {
     return;
   }
 
+  // =====================
   // ASSISTENZA
+  // =====================
   if (assistenzaUsers.has(chatId)) {
     bot.sendMessage(chatId, "✅ Messaggio inviato correttamente!");
 
@@ -335,7 +347,9 @@ ${msg.text}`,
     return;
   }
 
+  // =====================
   // MODULI
+  // =====================
   bot.sendMessage(chatId, "✅ Modulo inviato correttamente!");
   ADMIN_IDS.forEach(id => {
     bot.sendMessage(
