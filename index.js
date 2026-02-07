@@ -104,7 +104,10 @@ bot.on("callback_query", (q) => {
       `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`,
       {
         reply_markup: {
-          inline_keyboard: [[{ text: "⏭️ Skip", callback_data: "SKIP_REVIEW" }]]
+          inline_keyboard: [[
+            // Qui il bottone Skip passa il rating nella callback
+            { text: "⏭️ Skip", callback_data: `SKIP_${rating}` }
+          ]]
         }
       }
     );
@@ -112,27 +115,24 @@ bot.on("callback_query", (q) => {
   }
 
   // ⭐ skip
-  if (q.data === "SKIP_REVIEW") {
-    const state = reviewState.get(userId);
-    if (!state) {
-      bot.answerCallbackQuery(q.id, { text: "❌ Stato recensione non trovato", show_alert: true });
-      return;
-    }
-
-    reviewState.delete(userId);
-    saveReview({ rating: state.rating, comment: null });
+  if (q.data.startsWith("SKIP_")) {
+    const rating = Number(q.data.split("_")[1]);
+    saveReview({ rating, comment: null });
 
     const avg = getAverage();
     const total = loadReviews().length;
 
     bot.answerCallbackQuery(q.id, { text: "Recensione inviata!" });
     bot.sendMessage(chatId,
-      `✅ Recensione inviata correttamente!\n⭐ Voto: ${state.rating}/5\n📊 Media attuale: ${avg} (${total} voti)`);
+      `✅ Recensione inviata correttamente!\n⭐ Voto: ${rating}/5\n📊 Media attuale: ${avg} (${total} voti)`);
 
     ADMIN_IDS.forEach(id => {
       bot.sendMessage(id,
-        `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${state.rating}/5\n💬 Nessun commento`);
+        `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`);
     });
+
+    // Rimuovo stato dell'utente in memoria se esiste
+    reviewState.delete(userId);
     return;
   }
 
