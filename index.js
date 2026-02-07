@@ -74,18 +74,23 @@ bot.on("callback_query", (q) => {
 
   // ===== RECENSIONI =====
   if (q.data.startsWith("RATE_")) {
+    // Rispondi subito alla callback per togliere "Carico..."
+    bot.answerCallbackQuery(q.id, { text: "Recensione inviata!" });
+
     const rating = parseInt(q.data.split("_")[1]);
     saveReview(rating);
 
     const avg = getAverage();
     const total = loadReviews().length;
 
+    // Risposta all'utente
     bot.sendMessage(
       chatId,
       `🙏 Grazie per la recensione!\n\n⭐ Voto: *${rating}/5*\n📊 Media attuale: *${avg}* (${total} voti)`,
       { parse_mode: "Markdown" }
     );
 
+    // Notifica agli admin
     ADMIN_IDS.forEach(id => {
       bot.sendMessage(
         id,
@@ -94,7 +99,7 @@ bot.on("callback_query", (q) => {
       );
     });
 
-    return bot.answerCallbackQuery(q.id);
+    return; // esce qui, non passa al switch
   }
 
   // ===== ALTRE CALLBACK =====
@@ -138,22 +143,23 @@ bot.on("callback_query", (q) => {
       break;
 
     case "OPEN_REVIEW":
-      bot.sendMessage(chatId, "⭐ *Lascia una recensione*", {
-        parse_mode: "Markdown",
-        reply_markup: {
-          inline_keyboard: [[
-            { text: "⭐", callback_data: "RATE_1" },
-            { text: "⭐⭐", callback_data: "RATE_2" },
-            { text: "⭐⭐⭐", callback_data: "RATE_3" },
-            { text: "⭐⭐⭐⭐", callback_data: "RATE_4" },
-            { text: "⭐⭐⭐⭐⭐", callback_data: "RATE_5" }
-          ]]
+      bot.sendMessage(chatId,
+        "⭐ *Lascia una recensione*\nSeleziona un punteggio da 1 a 5:",
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [[
+              { text: "1", callback_data: "RATE_1" },
+              { text: "2", callback_data: "RATE_2" },
+              { text: "3", callback_data: "RATE_3" },
+              { text: "4", callback_data: "RATE_4" },
+              { text: "5", callback_data: "RATE_5" }
+            ]]
+          }
         }
-      });
+      );
       break;
   }
-
-  bot.answerCallbackQuery(q.id);
 });
 
 // ===== MESSAGGI TESTO =====
