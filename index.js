@@ -43,11 +43,14 @@ const getAverage = () => {
 // =====================
 // STATI
 // =====================
-const reviewState = new Map(); 
+const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
-const assistenzaUsers = new Set(); // utenti in assistenza o moduli
+// utenti in moduli/assistenza con tipo
+// es: userId -> "ASSISTENZA" | "ORDINE" | "ASTA" | "CANDIDATURA" | "SPONSOR"
+const userState = new Map(); 
+
 const adminReplyMap = {};          // admin -> utente per risposta assistenza
 
 const escapeMarkdown = (text) => text.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
@@ -154,33 +157,33 @@ bot.on("callback_query", (q) => {
       break;
 
     case "OPEN_ASTA":
-      assistenzaUsers.add(chatId);
+      userState.set(userId, "ASTA");
       bot.sendMessage(chatId,
         `🏷️ *Modulo Asta*\n\nScrivi in un unico messaggio:\n1️⃣ Nickname\n2️⃣ Oggetto/i\n3️⃣ Prezzo base\n4️⃣ Rilancio`,
         { parse_mode: "Markdown" });
       break;
 
     case "OPEN_ORDINI":
-      assistenzaUsers.add(chatId);
+      userState.set(userId, "ORDINE");
       bot.sendMessage(chatId,
         `📝 *Modulo Ordinazioni*\n\nScrivi in un unico messaggio:\n1️⃣ Nickname\n2️⃣ @ Telegram\n3️⃣ Prodotti desiderati`,
         { parse_mode: "Markdown" });
       break;
 
     case "OPEN_ASSISTENZA":
-      assistenzaUsers.add(chatId);
+      userState.set(userId, "ASSISTENZA");
       bot.sendMessage(chatId, "🆘 Scrivi il tuo messaggio per l’assistenza. Sarà inviato agli admin.", { parse_mode: "Markdown" });
       break;
 
     case "OPEN_SPONSOR":
-      assistenzaUsers.add(chatId);
+      userState.set(userId, "SPONSOR");
       bot.sendMessage(chatId,
         `⭐ *Richiesta Sponsor*\nScrivi in un unico messaggio: tipo, durata, dettagli aggiuntivi`,
         { parse_mode: "Markdown" });
       break;
 
     case "OPEN_CANDIDATURA":
-      assistenzaUsers.add(chatId);
+      userState.set(userId, "CANDIDATURA");
       bot.sendMessage(chatId,
         `📝 *Come fare il curriculum*\n\n1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)\n` +
         `2️⃣ *Parlaci di te*: chi sei, passioni...\n3️⃣ *Perché dovremmo sceglierti*\n4️⃣ *Esperienze lavorative*\n` +
@@ -219,28 +222,28 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // Moduli / Assistenza
-  if (assistenzaUsers.has(chatId)) {
-    assistenzaUsers.delete(chatId);
+  // MODULI / ASSISTENZA
+  const currentState = userState.get(userId);
+  if (currentState) {
+    userState.delete(userId);
 
-    // Determiniamo se è assistenza o modulo per messaggio differente
-    const isAssistenza = msg.text.toLowerCase().includes("assistenza") || msg.text.toLowerCase().includes("aiuto");
-    const responseText = isAssistenza ? "✅ Messaggio inviato correttamente!" : "✅ Modulo inviato correttamente!";
+    let responseText = "✅ Modulo inviato correttamente!";
+    if (currentState === "ASSISTENZA") responseText = "✅ Messaggio inviato correttamente!";
 
     bot.sendMessage(chatId, responseText);
 
     ADMIN_IDS.forEach(id => {
       bot.sendMessage(id,
-        `📩 *Nuovo messaggio/modulo*\n\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${msg.from.id}\n\n${escapeMarkdown(msg.text)}`,
+        `📩 *Nuovo ${currentState.toLowerCase()}*\n\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${msg.from.id}\n\n${escapeMarkdown(msg.text)}`,
         { parse_mode: "Markdown" }
       );
-      adminReplyMap[id] = chatId; 
+      adminReplyMap[id] = chatId;
     });
     return;
   }
 
   // Messaggi generici
-  bot.sendMessage(chatId, "✅ Modulo inviato correttamente!");
+  bot.sendMessage(chatId, "✅ Messaggio inviato correttamente!");
   ADMIN_IDS.forEach(id => {
     bot.sendMessage(id,
       `📥 *Nuovo messaggio*\n\n👤 ${msg.from.first_name}\n🆔 ${msg.from.id}\n\n${escapeMarkdown(msg.text)}`,
