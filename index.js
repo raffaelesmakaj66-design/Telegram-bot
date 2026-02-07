@@ -17,7 +17,7 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // =====================
 // IMMAGINE DI BENVENUTO
 // =====================
-let WELCOME_IMAGE = "INSERISCI_IL_TUO_FILE_ID_QUI"; // ← qui metti il tuo file_id
+let WELCOME_IMAGE = "INSERISCI_IL_TUO_FILE_ID_QUI"; // ← metti qui il tuo file_id
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
 // =====================
@@ -152,7 +152,6 @@ bot.on("callback_query", (q) => {
         }
       });
       break;
-    // Altri menu puoi aggiungerli qui (OPEN_LISTINO, OPEN_ASTA, ecc.)
   }
 
   bot.answerCallbackQuery(q.id);
@@ -200,7 +199,6 @@ bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
     return;
   }
 
-  // Se è passato un userId, elimina recensioni di quell'utente
   const targetUserId = match[1] ? Number(match[1]) : null;
 
   if (targetUserId) {
@@ -210,7 +208,6 @@ bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
     const removed = beforeCount - reviews.length;
     bot.sendMessage(chatId, `✅ Eliminate ${removed} recensioni dell'utente ${targetUserId}.`);
   } else {
-    // altrimenti elimina l'ultima recensione
     const removedReview = reviews.pop();
     saveReviews(reviews);
     bot.sendMessage(chatId, `✅ Eliminata l'ultima recensione di ⭐ ${removedReview.rating}/5.`);
@@ -218,10 +215,10 @@ bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
 });
 
 // =====================
-// SNIPPET TEMPORANEO PER OTTENERE FILE_ID
+// OTTENERE FILE_ID DELLE FOTO IN CHAT
 // =====================
 bot.on("photo", (msg) => {
   const photo = msg.photo[msg.photo.length - 1]; // più alta risoluzione
-  console.log("📌 File ID della foto:", photo.file_id);
-  bot.sendMessage(msg.chat.id, "✅ Foto ricevuta! Controlla la console per il file_id.");
+  const fileId = photo.file_id;
+  bot.sendMessage(msg.chat.id, `📌 File ID della foto: \n${fileId}`);
 });
