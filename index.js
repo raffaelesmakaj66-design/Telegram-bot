@@ -83,10 +83,10 @@ bot.on("callback_query", (q) => {
     const avg = getAverage();
     const total = loadReviews().length;
 
-    // Risposta all'utente
+    // Messaggio più carino per l'utente
     bot.sendMessage(
       chatId,
-      `🙏 Grazie per la recensione!\n\n⭐ Voto: *${rating}/5*\n📊 Media attuale: *${avg}* (${total} voti)`,
+      `🙏 Grazie per la tua recensione! Apprezziamo molto il tuo feedback e continueremo a migliorarci grazie a te ⭐\n\n⭐ Voto: *${rating}/5*\n📊 Media attuale: *${avg}* (${total} voti)`,
       { parse_mode: "Markdown" }
     );
 
@@ -149,11 +149,11 @@ bot.on("callback_query", (q) => {
           parse_mode: "Markdown",
           reply_markup: {
             inline_keyboard: [[
-              { text: "1", callback_data: "RATE_1" },
-              { text: "2", callback_data: "RATE_2" },
-              { text: "3", callback_data: "RATE_3" },
-              { text: "4", callback_data: "RATE_4" },
-              { text: "5", callback_data: "RATE_5" }
+              { text: "⭐", callback_data: "RATE_1" },
+              { text: "⭐⭐", callback_data: "RATE_2" },
+              { text: "⭐⭐⭐", callback_data: "RATE_3" },
+              { text: "⭐⭐⭐⭐", callback_data: "RATE_4" },
+              { text: "⭐⭐⭐⭐⭐", callback_data: "RATE_5" }
             ]]
           }
         }
