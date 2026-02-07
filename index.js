@@ -6,10 +6,10 @@ import fs from "fs";
 // =====================
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const ADMIN_IDS = process.env.ADMIN_ID?.split(",").map(id => Number(id.trim())) || [];
-const SUPER_ADMIN_ID = Number(process.env.SUPER_ADMIN_ID); // ← il tuo ID numerico
+const SUPER_ADMIN_ID = Number(process.env.SUPER_ADMIN_ID); // solo tu puoi usare /admin
 
-if (!TOKEN || !SUPER_ADMIN_ID) {
-  console.error("❌ TELEGRAM_TOKEN o SUPER_ADMIN_ID mancanti");
+if (!TOKEN || ADMIN_IDS.length === 0 || !SUPER_ADMIN_ID) {
+  console.error("❌ TELEGRAM_TOKEN, ADMIN_ID o SUPER_ADMIN_ID mancanti");
   process.exit(1);
 }
 
@@ -18,7 +18,7 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // =====================
 // IMMAGINE DI BENVENUTO
 // =====================
-const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ";
+const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ"; 
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
 // =====================
@@ -48,10 +48,8 @@ const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
-// utenti in moduli/assistenza con tipo
 const userState = new Map(); // userId -> "ASSISTENZA" | "ORDINE" | "ASTA" | "SPONSOR"
-
-const adminReplyMap = {};          // admin -> utente per risposta assistenza
+const adminReplyMap = {};     // admin -> utente per risposta assistenza
 
 const escapeMarkdown = (text) => text.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
 
@@ -105,7 +103,6 @@ bot.on("callback_query", (q) => {
     reviewState.set(userId, { rating, chatId, waitingComment: true });
 
     bot.answerCallbackQuery(q.id, { text: "⭐ Voto registrato!" });
-
     bot.sendMessage(chatId,
       `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`,
       { reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `SKIP_${rating}` }]] } }
@@ -205,6 +202,10 @@ bot.on("callback_query", (q) => {
 // =====================
 bot.on("message", (msg) => {
   if (!msg.text) return;
+
+  // Ignora tutti i comandi, così /admin e altri non ricevono messaggio generico
+  if (msg.text.startsWith("/")) return;
+
   const chatId = msg.chat.id;
   const userId = Number(msg.from.id);
 
@@ -226,14 +227,13 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // MODULI / ASSISTENZA / SPONSOR
+  // MODULI / ASSISTENZA
   const currentState = userState.get(userId);
   if (currentState) {
     userState.delete(userId);
 
     let responseText = "✅ Modulo inviato correttamente!";
     if (currentState === "ASSISTENZA") responseText = "✅ Messaggio inviato correttamente!";
-    if (currentState === "SPONSOR") responseText = "✅ Messaggio inviato correttamente!";
 
     bot.sendMessage(chatId, responseText);
 
@@ -291,18 +291,18 @@ bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
 });
 
 // =====================
-// /admin add/remove (solo SUPER ADMIN)
+// /admin add/remove (solo super admin)
 // =====================
 bot.onText(/\/admin (add|remove) (\d+)/, (msg, match) => {
-  const fromId = Number(msg.from.id);
   const chatId = msg.chat.id;
+  const fromId = Number(msg.from.id);
 
   if (fromId !== SUPER_ADMIN_ID) {
     bot.sendMessage(chatId, "❌ Solo il super admin può usare questo comando.");
     return;
   }
 
-  const action = match[1];   // add o remove
+  const action = match[1];
   const targetId = Number(match[2]);
 
   if (action === "add") {
