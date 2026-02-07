@@ -60,8 +60,8 @@ bot.onText(/\/start/, (msg) => {
           { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
           { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
         ],
-        [{ text: "⭐ Recensione", callback_data: "OPEN_REVIEW" }],
-        [{ text: "⭐ Sponsor", callback_data: "OPEN_SPONSOR" }],
+        [{ text: "⭐ Lascia una Recensione", callback_data: "OPEN_REVIEW" }],
+        [{ text: "📢 Richiedi uno Sponsor", callback_data: "OPEN_SPONSOR" }],
         [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
       ]
     }
