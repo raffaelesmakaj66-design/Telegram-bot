@@ -17,7 +17,7 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // =====================
 // IMMAGINE DI BENVENUTO
 // =====================
-let WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ"; // ← metti qui il tuo file_id
+const WELCOME_IMAGE = "INSERISCI_IL_TUO_FILE_ID_QUI"; // ← metti qui il file_id corretto
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
 // =====================
@@ -59,7 +59,7 @@ bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
 
   bot.sendPhoto(chatId, WELCOME_IMAGE, {
-    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*`,
+    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni per continuare:`,
     parse_mode: "Markdown",
     reply_markup: {
       inline_keyboard: [
@@ -72,8 +72,8 @@ bot.onText(/\/start/, (msg) => {
           { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
           { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
         ],
-        [{ text: "⭐ Recensione", callback_data: "OPEN_REVIEW" }],
-        [{ text: "⭐ Sponsor", callback_data: "OPEN_SPONSOR" }],
+        [{ text: "⭐ Lascia una Recensione", callback_data: "OPEN_REVIEW" }],
+        [{ text: "📢 Richiedi uno Sponsor", callback_data: "OPEN_SPONSOR" }],
         [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
       ]
     }
@@ -152,6 +152,7 @@ bot.on("callback_query", (q) => {
         }
       });
       break;
+    // qui puoi aggiungere altri menu come OPEN_LISTINO, OPEN_ASTA, ecc.
   }
 
   bot.answerCallbackQuery(q.id);
@@ -212,13 +213,4 @@ bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
     saveReviews(reviews);
     bot.sendMessage(chatId, `✅ Eliminata l'ultima recensione di ⭐ ${removedReview.rating}/5.`);
   }
-});
-
-// =====================
-// OTTENERE FILE_ID DELLE FOTO IN CHAT
-// =====================
-bot.on("photo", (msg) => {
-  const photo = msg.photo[msg.photo.length - 1]; // più alta risoluzione
-  const fileId = photo.file_id;
-  bot.sendMessage(msg.chat.id, `📌 File ID della foto: \n${fileId}`);
 });
