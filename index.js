@@ -177,7 +177,7 @@ bot.on("callback_query", (q) => {
     case "OPEN_SPONSOR":
       userState.set(userId, "SPONSOR");
       bot.sendMessage(chatId,
-        `⭐ *Richiesta Sponsor*\nScrivi in un unico messaggio: tipo, durata, dettagli aggiuntivi`,
+        `📢 *Richiesta Sponsor*\nScrivi in un unico messaggio: tipo, durata, dettagli aggiuntivi`,
         { parse_mode: "Markdown" });
       break;
 
