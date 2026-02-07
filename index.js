@@ -17,7 +17,7 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // =====================
 // IMMAGINE DI BENVENUTO
 // =====================
-let WELCOME_IMAGE = "INSERISCI_IL_TUO_FILE_ID_QUI"; // ← metti qui il tuo file_id
+let WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ"; // ← metti qui il tuo file_id
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
 // =====================
