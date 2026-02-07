@@ -17,7 +17,7 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // =====================
 // IMMAGINE DI BENVENUTO
 // =====================
-const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ"; // ← metti qui il file_id corretto
+const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ"; 
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
 // =====================
@@ -28,13 +28,11 @@ if (!fs.existsSync(REVIEWS_FILE)) fs.writeFileSync(REVIEWS_FILE, JSON.stringify(
 
 const loadReviews = () => JSON.parse(fs.readFileSync(REVIEWS_FILE, "utf8"));
 const saveReviews = (reviews) => fs.writeFileSync(REVIEWS_FILE, JSON.stringify(reviews, null, 2));
-
 const saveReview = (review) => {
   const reviews = loadReviews();
   reviews.push(review);
   saveReviews(reviews);
 };
-
 const getAverage = () => {
   const reviews = loadReviews();
   if (reviews.length === 0) return "0.0";
@@ -45,17 +43,13 @@ const getAverage = () => {
 // =====================
 // STATI
 // =====================
-const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
+const reviewState = new Map(); 
 const reviewCooldown = new Map();
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
-// utenti in assistenza o moduli
-const assistenzaUsers = new Set(); 
+const assistenzaUsers = new Set(); // utenti in assistenza o moduli
+const adminReplyMap = {};          // admin -> utente per risposta assistenza
 
-// admin -> utente per risposta assistenza
-const adminReplyMap = {};
-
-// helper markdown
 const escapeMarkdown = (text) => text.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
 
 // =====================
@@ -111,11 +105,7 @@ bot.on("callback_query", (q) => {
 
     bot.sendMessage(chatId,
       `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`,
-      {
-        reply_markup: {
-          inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `SKIP_${rating}` }]]
-        }
-      }
+      { reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `SKIP_${rating}` }]] } }
     );
     return;
   }
@@ -147,15 +137,13 @@ bot.on("callback_query", (q) => {
     case "OPEN_REVIEW":
       bot.sendMessage(chatId, `⭐ *Lascia una recensione*\nSeleziona un voto da 1 a 5:`, {
         parse_mode: "Markdown",
-        reply_markup: {
-          inline_keyboard: [[
-            { text: "⭐ 1", callback_data: "RATE_1" },
-            { text: "⭐ 2", callback_data: "RATE_2" },
-            { text: "⭐ 3", callback_data: "RATE_3" },
-            { text: "⭐ 4", callback_data: "RATE_4" },
-            { text: "⭐ 5", callback_data: "RATE_5" }
-          ]]
-        }
+        reply_markup: { inline_keyboard: [[
+          { text: "⭐ 1", callback_data: "RATE_1" },
+          { text: "⭐ 2", callback_data: "RATE_2" },
+          { text: "⭐ 3", callback_data: "RATE_3" },
+          { text: "⭐ 4", callback_data: "RATE_4" },
+          { text: "⭐ 5", callback_data: "RATE_5" }
+        ]] }
       });
       break;
 
@@ -185,22 +173,18 @@ bot.on("callback_query", (q) => {
       break;
 
     case "OPEN_SPONSOR":
+      assistenzaUsers.add(chatId);
       bot.sendMessage(chatId,
-        `⭐ *Sponsor*\n• Base → 1k\n• Medio → 2.5k\n• Premium → 5k\n• Elite → 10k`,
+        `⭐ *Richiesta Sponsor*\nScrivi in un unico messaggio: tipo, durata, dettagli aggiuntivi`,
         { parse_mode: "Markdown" });
       break;
 
     case "OPEN_CANDIDATURA":
       assistenzaUsers.add(chatId);
       bot.sendMessage(chatId,
-        `📝 *Come fare il curriculum*\n\nCompila il tuo curriculum seguendo questi punti:\n\n` +
-        `1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)\n` +
-        `2️⃣ *Parlaci di te*: chi sei, passioni...\n` +
-        `3️⃣ *Perché dovremmo sceglierti*\n` +
-        `4️⃣ *Esperienze lavorative*: se presenti e se lavori attualmente in un’azienda\n` +
-        `5️⃣ *Competenze*: uso della cassa e capacità di cucinare\n` +
-        `6️⃣ *Pregi e difetti*\n\n` +
-        `📍 *Consegna del curriculum*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
+        `📝 *Come fare il curriculum*\n\n1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)\n` +
+        `2️⃣ *Parlaci di te*: chi sei, passioni...\n3️⃣ *Perché dovremmo sceglierti*\n4️⃣ *Esperienze lavorative*\n` +
+        `5️⃣ *Competenze*: uso della cassa e capacità di cucinare\n6️⃣ *Pregi e difetti\n\n📍 *Consegna*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
         { parse_mode: "Markdown" });
       break;
   }
@@ -209,7 +193,7 @@ bot.on("callback_query", (q) => {
 });
 
 // =====================
-// MESSAGE (COMMENTO / MODULI / ASSISTENZA)
+// MESSAGE
 // =====================
 bot.on("message", (msg) => {
   if (!msg.text || msg.text.startsWith("/")) return;
@@ -217,7 +201,7 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const userId = Number(msg.from.id);
 
-  // ⭐ Commento recensione
+  // Recensione
   const state = reviewState.get(userId);
   if (state && state.waitingComment) {
     reviewState.delete(userId);
@@ -235,17 +219,22 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // =====================
   // Moduli / Assistenza
   if (assistenzaUsers.has(chatId)) {
-    bot.sendMessage(chatId, "✅ Messaggio inviato correttamente!");
+    assistenzaUsers.delete(chatId);
+
+    // Determiniamo se è assistenza o modulo per messaggio differente
+    const isAssistenza = msg.text.toLowerCase().includes("assistenza") || msg.text.toLowerCase().includes("aiuto");
+    const responseText = isAssistenza ? "✅ Messaggio inviato correttamente!" : "✅ Modulo inviato correttamente!";
+
+    bot.sendMessage(chatId, responseText);
 
     ADMIN_IDS.forEach(id => {
       bot.sendMessage(id,
-        `📩 *Nuovo modulo / assistenza*\n\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${msg.from.id}\n\n${escapeMarkdown(msg.text)}`,
+        `📩 *Nuovo messaggio/modulo*\n\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${msg.from.id}\n\n${escapeMarkdown(msg.text)}`,
         { parse_mode: "Markdown" }
       );
-      adminReplyMap[id] = chatId; // permette rispondere all'utente
+      adminReplyMap[id] = chatId; 
     });
     return;
   }
@@ -261,7 +250,7 @@ bot.on("message", (msg) => {
 });
 
 // =====================
-// COMANDO /delreview (solo admin)
+// /delreview
 // =====================
 bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
   const chatId = msg.chat.id;
