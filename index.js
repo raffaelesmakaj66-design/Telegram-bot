@@ -48,8 +48,7 @@ const reviewCooldown = new Map();
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
 // utenti in moduli/assistenza con tipo
-// es: userId -> "ASSISTENZA" | "ORDINE" | "ASTA" | "CANDIDATURA" | "SPONSOR"
-const userState = new Map(); 
+const userState = new Map(); // userId -> "ASSISTENZA" | "ORDINE" | "ASTA" | "SPONSOR"
 
 const adminReplyMap = {};          // admin -> utente per risposta assistenza
 
@@ -183,12 +182,17 @@ bot.on("callback_query", (q) => {
       break;
 
     case "OPEN_CANDIDATURA":
-      userState.set(userId, "CANDIDATURA");
       bot.sendMessage(chatId,
-        `📝 *Come fare il curriculum*\n\n1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)\n` +
-        `2️⃣ *Parlaci di te*: chi sei, passioni...\n3️⃣ *Perché dovremmo sceglierti*\n4️⃣ *Esperienze lavorative*\n` +
-        `5️⃣ *Competenze*: uso della cassa e capacità di cucinare\n6️⃣ *Pregi e difetti\n\n📍 *Consegna*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
-        { parse_mode: "Markdown" });
+        `📝 *Come fare il curriculum*\n\nCompila il tuo curriculum seguendo questi punti:\n\n` +
+        `1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)\n` +
+        `2️⃣ *Parlaci di te*: chi sei, passioni...\n` +
+        `3️⃣ *Perché dovremmo sceglierti*\n` +
+        `4️⃣ *Esperienze lavorative*: se presenti e se lavori attualmente in un’azienda\n` +
+        `5️⃣ *Competenze*: uso della cassa e capacità di cucinare\n` +
+        `6️⃣ *Pregi e difetti*\n\n` +
+        `📍 *Consegna del curriculum*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
+        { parse_mode: "Markdown" }
+      );
       break;
   }
 
