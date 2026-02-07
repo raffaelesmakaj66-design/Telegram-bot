@@ -1,77 +1,40 @@
-import TelegramBot from "node-telegram-bot-api";
-import fs from "fs";
-
-console.log("🤖 Bot Telegram avviato");
-
-const TOKEN = process.env.TELEGRAM_TOKEN;
-const ADMIN_IDS = process.env.ADMIN_ID.split(",").map(id => id.trim());
-
-if (!TOKEN || ADMIN_IDS.length === 0) {
-  console.error("❌ Variabili ambiente mancanti");
-  process.exit(1);
-}
-
-const bot = new TelegramBot(TOKEN, { polling: true });
-
-// ===== FILE RECENSIONI =====
-const REVIEWS_FILE = "./reviews.json";
-
-if (!fs.existsSync(REVIEWS_FILE)) {
-  fs.writeFileSync(REVIEWS_FILE, JSON.stringify([]));
-}
-
-const loadReviews = () =>
-  JSON.parse(fs.readFileSync(REVIEWS_FILE, "utf8"));
-
-const saveReview = (rating) => {
-  const reviews = loadReviews();
-  reviews.push(rating);
-  fs.writeFileSync(REVIEWS_FILE, JSON.stringify(reviews, null, 2));
-};
-
-const getAverage = () => {
-  const reviews = loadReviews();
-  if (reviews.length === 0) return 0;
-  return (reviews.reduce((a, b) => a + b, 0) / reviews.length).toFixed(1);
-};
-
-// ===== CONFIG =====
-const WELCOME_IMAGE =
-  "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
-
-const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
-
-const assistenzaUsers = new Set();
-const adminReplyMap = {};
-
-// ===== /start =====
-bot.onText(/\/start/, (msg) => {
-  bot.sendPhoto(msg.chat.id, WELCOME_IMAGE, {
-    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*`,
-    parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: "📣 Canale", url: CHANNEL_URL }],
-        [
-          { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
-          { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
-        ],
-        [
-          { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
-          { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
-        ],
-        [{ text: "⭐ Recensione", callback_data: "OPEN_REVIEW" }],
-        [{ text: "⭐ Sponsor", callback_data: "OPEN_SPONSOR" }],
-        [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
-      ]
-    }
-  });
-});
-
-// ===== CALLBACK =====
 bot.on("callback_query", (q) => {
   const chatId = q.message.chat.id;
 
+  // ⭐ GESTIONE RECENSIONI (PRIMA)
+  if (q.data.startsWith("RATE_")) {
+    const rating = parseInt(q.data.split("_")[1]);
+    saveReview(rating);
+
+    const avg = getAverage();
+    const total = loadReviews().length;
+
+    bot.sendMessage(
+      chatId,
+      `🙏 Grazie per la recensione!
+
+⭐ Voto: *${rating}/5*
+📊 Media attuale: *${avg}* (${total} voti)`,
+      { parse_mode: "Markdown" }
+    );
+
+    ADMIN_IDS.forEach(id => {
+      bot.sendMessage(
+        id,
+        `⭐ *Nuova recensione*
+
+👤 ${q.from.first_name}
+⭐ ${rating}/5
+📊 Media: ${avg}`,
+        { parse_mode: "Markdown" }
+      );
+    });
+
+    bot.answerCallbackQuery(q.id);
+    return; // 🔴 IMPORTANTISSIMO
+  }
+
+  // ===== ALTRI BOTTONI =====
   switch (q.data) {
     case "OPEN_LISTINO":
     case "OPEN_SPONSOR":
@@ -139,104 +102,25 @@ bot.on("callback_query", (q) => {
     case "OPEN_REVIEW":
       bot.sendMessage(
         chatId,
-        "⭐ *Lascia una recensione*",
+        `⭐ *Lascia una recensione*
+
+Seleziona un voto da *1 a 5 stelle* ⭐
+in base alla tua esperienza.`,
         {
           parse_mode: "Markdown",
           reply_markup: {
             inline_keyboard: [[
-              { text: "⭐", callback_data: "RATE_1" },
-              { text: "⭐⭐", callback_data: "RATE_2" },
-              { text: "⭐⭐⭐", callback_data: "RATE_3" },
-              { text: "⭐⭐⭐⭐", callback_data: "RATE_4" },
-              { text: "⭐⭐⭐⭐⭐", callback_data: "RATE_5" }
+              { text: "⭐ 1", callback_data: "RATE_1" },
+              { text: "⭐ 2", callback_data: "RATE_2" },
+              { text: "⭐ 3", callback_data: "RATE_3" },
+              { text: "⭐ 4", callback_data: "RATE_4" },
+              { text: "⭐ 5", callback_data: "RATE_5" }
             ]]
           }
         }
       );
       break;
-
-    case q.data.startsWith("RATE_") && q.data: {
-      const rating = parseInt(q.data.split("_")[1]);
-      saveReview(rating);
-
-      const avg = getAverage();
-      const total = loadReviews().length;
-
-      bot.sendMessage(
-        chatId,
-        `🙏 Grazie per la recensione!
-
-⭐ Voto: *${rating}/5*
-📊 Media attuale: *${avg}* (${total} voti)`,
-        { parse_mode: "Markdown" }
-      );
-
-      ADMIN_IDS.forEach(id => {
-        bot.sendMessage(
-          id,
-          `⭐ *Nuova recensione*
-
-👤 ${q.from.first_name}
-⭐ ${rating}/5
-📊 Media: ${avg}`,
-          { parse_mode: "Markdown" }
-        );
-      });
-      break;
-    }
   }
 
   bot.answerCallbackQuery(q.id);
-});
-
-// ===== MESSAGGI =====
-bot.on("message", (msg) => {
-  if (!msg.text || msg.text.startsWith("/")) return;
-
-  const chatId = msg.chat.id;
-  const user = msg.from;
-
-  // ADMIN RISPOSTA
-  if (ADMIN_IDS.includes(String(user.id))) {
-    const target = adminReplyMap[user.id];
-    if (target) {
-      bot.sendMessage(target, `💬 *Risposta admin:*\n${msg.text}`, { parse_mode: "Markdown" });
-      delete adminReplyMap[user.id];
-    }
-    return;
-  }
-
-  // ASSISTENZA
-  if (assistenzaUsers.has(chatId)) {
-    bot.sendMessage(chatId, "✅ Messaggio inviato correttamente!");
-    ADMIN_IDS.forEach(id => {
-      bot.sendMessage(
-        id,
-        `📩 *Assistenza*
-
-👤 ${user.first_name} (@${user.username || "nessuno"})
-🆔 ${user.id}
-
-${msg.text}`,
-        { parse_mode: "Markdown" }
-      );
-      adminReplyMap[id] = chatId;
-    });
-    return;
-  }
-
-  // MODULI
-  bot.sendMessage(chatId, "✅ Modulo inviato correttamente!");
-  ADMIN_IDS.forEach(id => {
-    bot.sendMessage(
-      id,
-      `📥 *Nuovo modulo*
-
-👤 ${user.first_name}
-🆔 ${user.id}
-
-${msg.text}`,
-      { parse_mode: "Markdown" }
-    );
-  });
 });
