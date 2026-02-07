@@ -14,7 +14,10 @@ if (!TOKEN || ADMIN_IDS.length === 0) {
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
-const WELCOME_IMAGE = "AgACAgQAAxkBAAM1aYRXYd4FNs3LsBgpox5c0av2Ic8AAg8OaxsyrSlQ23YZ-nsoLoABAAMCAAN5AAM4BA";
+// =====================
+// IMMAGINE DI BENVENUTO
+// =====================
+let WELCOME_IMAGE = "INSERISCI_IL_TUO_FILE_ID_QUI"; // ← qui metti il tuo file_id
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
 // =====================
@@ -96,12 +99,10 @@ bot.on("callback_query", (q) => {
     }
 
     reviewCooldown.set(userId, now);
-    // salvo stato per commento con chatId
     reviewState.set(userId, { rating, chatId, waitingComment: true });
 
     bot.answerCallbackQuery(q.id, { text: "⭐ Voto registrato!" });
 
-    // Skip con rating incorporato
     bot.sendMessage(chatId,
       `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`,
       {
@@ -151,8 +152,7 @@ bot.on("callback_query", (q) => {
         }
       });
       break;
-
-    // ... altri menu se vuoi ...
+    // Altri menu puoi aggiungerli qui (OPEN_LISTINO, OPEN_ASTA, ecc.)
   }
 
   bot.answerCallbackQuery(q.id);
@@ -215,4 +215,13 @@ bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
     saveReviews(reviews);
     bot.sendMessage(chatId, `✅ Eliminata l'ultima recensione di ⭐ ${removedReview.rating}/5.`);
   }
+});
+
+// =====================
+// SNIPPET TEMPORANEO PER OTTENERE FILE_ID
+// =====================
+bot.on("photo", (msg) => {
+  const photo = msg.photo[msg.photo.length - 1]; // più alta risoluzione
+  console.log("📌 File ID della foto:", photo.file_id);
+  bot.sendMessage(msg.chat.id, "✅ Foto ricevuta! Controlla la console per il file_id.");
 });
