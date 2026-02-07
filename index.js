@@ -1,11 +1,11 @@
 import TelegramBot from "node-telegram-bot-api";
 import fs from "fs";
+import path from "path";
 
 // =====================
 // CONFIG
 // =====================
 const TOKEN = process.env.TELEGRAM_TOKEN;
-const ADMIN_IDS = process.env.ADMIN_ID?.split(",").map(id => Number(id.trim())) || [];
 const SUPER_ADMIN = Number(process.env.SUPER_ADMIN);
 
 if (!TOKEN || !SUPER_ADMIN) {
@@ -20,41 +20,32 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // =====================
 const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ";
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
+const DATA_FILE = path.join(process.cwd(), "chatlog.json");
 
 // =====================
-// RECENSIONI
-// =====================
-const REVIEWS_FILE = "./reviews.json";
-if (!fs.existsSync(REVIEWS_FILE)) fs.writeFileSync(REVIEWS_FILE, JSON.stringify([]));
-
-const loadReviews = () => JSON.parse(fs.readFileSync(REVIEWS_FILE, "utf8"));
-const saveReviews = (r) => fs.writeFileSync(REVIEWS_FILE, JSON.stringify(r, null, 2));
-const saveReview = (review) => {
-  const r = loadReviews();
-  r.push(review);
-  saveReviews(r);
-};
-const getAverage = () => {
-  const r = loadReviews();
-  if (!r.length) return "0.0";
-  return (r.reduce((a, b) => a + b.rating, 0) / r.length).toFixed(1);
-};
-
-// =====================
-// STATI
+// MEMO
 // =====================
 const reviewState = new Map();        // userId -> { rating, chatId }
 const reviewCooldown = new Map();
 const userState = new Map();          // userId -> tipo modulo
-const adminReplyMap = {};             // adminId -> userChatId
-
+const pendingUsers = new Map();       // userId -> boolean
+const adminReplyMap = {};             // adminId -> userId
+const ADMINS = new Set([SUPER_ADMIN]);
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
 // =====================
-// UTILS
+// FUNZIONI
 // =====================
 const escape = (t) => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
-const getAllAdmins = () => new Set([...ADMIN_IDS, SUPER_ADMIN]);
+
+const saveLog = (entry) => {
+  let logs = [];
+  if (fs.existsSync(DATA_FILE)) logs = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  logs.push(entry);
+  fs.writeFileSync(DATA_FILE, JSON.stringify(logs, null, 2));
+};
+
+const getAllAdmins = () => ADMINS;
 
 // =====================
 // /start
@@ -77,7 +68,7 @@ bot.onText(/\/start/, (msg) => {
 });
 
 // =====================
-// CALLBACK
+// CALLBACK QUERY
 // =====================
 bot.on("callback_query", (q) => {
   const userId = q.from.id;
@@ -91,7 +82,6 @@ bot.on("callback_query", (q) => {
       bot.answerCallbackQuery(q.id, { text: "⏳ Attendi un po’", show_alert: true });
       return;
     }
-
     reviewCooldown.set(userId, now);
     reviewState.set(userId, { rating, chatId });
 
@@ -104,10 +94,9 @@ bot.on("callback_query", (q) => {
 
   if (q.data.startsWith("SKIP_")) {
     const rating = Number(q.data.split("_")[1]);
-    saveReview({ rating, comment: null, userId });
+    saveLog({ type: "review", rating, comment: null, userId, timestamp: new Date().toISOString() });
+    bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5`);
 
-    const avg = getAverage();
-    bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5\n📊 Media: ${avg}`);
     getAllAdmins().forEach(id =>
       bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5`)
     );
@@ -163,7 +152,7 @@ bot.on("callback_query", (q) => {
 });
 
 // =====================
-// MESSAGGI
+// MESSAGGI UTENTE
 // =====================
 bot.on("message", (msg) => {
   if (!msg.text || msg.text.startsWith("/")) return;
@@ -175,7 +164,7 @@ bot.on("message", (msg) => {
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
-    saveReview({ rating, comment: msg.text, userId });
+    saveLog({ type:"review", rating, comment: msg.text, userId, timestamp: new Date().toISOString() });
 
     bot.sendMessage(chatId, "✅ Recensione inviata correttamente!");
     getAllAdmins().forEach(id =>
@@ -198,29 +187,34 @@ bot.on("message", (msg) => {
         `📩 *${type}*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escape(msg.text)}`,
         { parse_mode:"Markdown" }
       );
-      adminReplyMap[id] = chatId;
+      adminReplyMap[id] = chatId; // collega admin → utente
+      ADMINS.add(id);
     });
   }
 });
 
 // =====================
-// /reply (ADMIN)
+// RISPOSTA ADMIN CLICCANDO "RISPOSTA"
 // =====================
-bot.onText(/\/reply (.+)/, (msg, match) => {
+bot.on("message", (msg) => {
   const adminId = msg.from.id;
-  if (!getAllAdmins().has(adminId)) return;
+  if (!ADMINS.has(adminId)) return;
+  const targetUser = adminReplyMap[adminId];
+  if (!targetUser || msg.text.startsWith("/")) return;
 
-  const target = adminReplyMap[adminId];
-  if (!target) {
-    bot.sendMessage(msg.chat.id, "❌ Nessun utente da rispondere");
-    return;
-  }
-
-  bot.sendMessage(target,
-    `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(match[1])}`,
+  bot.sendMessage(targetUser,
+    `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
     { parse_mode:"Markdown" }
   );
 
-  bot.sendMessage(msg.chat.id, "✅ Risposta inviata all’utente");
+  bot.sendMessage(adminId, "✅ Risposta inviata all’utente");
   delete adminReplyMap[adminId];
+  saveLog({ type:"admin_reply", adminId, userId: targetUser, text: msg.text, timestamp: new Date().toISOString() });
+});
+
+// =====================
+// COMANDO /id
+// =====================
+bot.onText(/\/id/, (msg) => {
+  bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
 });
