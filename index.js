@@ -49,6 +49,12 @@ const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
+// utenti in assistenza o moduli
+const assistenzaUsers = new Set(); 
+
+// admin -> utente per risposta assistenza
+const adminReplyMap = {};
+
 // helper markdown
 const escapeMarkdown = (text) => text.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
 
@@ -72,8 +78,8 @@ bot.onText(/\/start/, (msg) => {
           { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
           { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
         ],
-        [{ text: "⭐ Recensione", callback_data: "OPEN_REVIEW" }],
-        [{ text: "⭐ Sponsor", callback_data: "OPEN_SPONSOR" }],
+        [{ text: "⭐ Lascia una Recensione", callback_data: "OPEN_REVIEW" }],
+        [{ text: "📢 Richiedi uno Sponsor", callback_data: "OPEN_SPONSOR" }],
         [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
       ]
     }
@@ -87,7 +93,7 @@ bot.on("callback_query", (q) => {
   const userId = Number(q.from.id);
   const chatId = q.message?.chat?.id || q.from.id;
 
-  // ⭐ Rating
+  // ⭐ Rating recensione
   if (q.data.startsWith("RATE_")) {
     const rating = Number(q.data.split("_")[1]);
     const now = Date.now();
@@ -114,7 +120,7 @@ bot.on("callback_query", (q) => {
     return;
   }
 
-  // ⭐ Skip
+  // ⭐ Skip recensione
   if (q.data.startsWith("SKIP_")) {
     const rating = Number(q.data.split("_")[1]);
     saveReview({ rating, comment: null, userId });
@@ -160,19 +166,22 @@ bot.on("callback_query", (q) => {
       break;
 
     case "OPEN_ASTA":
+      assistenzaUsers.add(chatId);
       bot.sendMessage(chatId,
-        `🏷️ *Modulo Asta*\n1️⃣ Oggetto/i\n2️⃣ Nickname\n3️⃣ Prezzo base\n4️⃣ Rilancio`,
+        `🏷️ *Modulo Asta*\n\nScrivi in un unico messaggio:\n1️⃣ Nickname\n2️⃣ Oggetto/i\n3️⃣ Prezzo base\n4️⃣ Rilancio`,
         { parse_mode: "Markdown" });
       break;
 
     case "OPEN_ORDINI":
+      assistenzaUsers.add(chatId);
       bot.sendMessage(chatId,
-        `📝 *Modulo Ordini*\n1️⃣ Nickname\n2️⃣ @ Telegram\n3️⃣ Prodotti desiderati`,
+        `📝 *Modulo Ordinazioni*\n\nScrivi in un unico messaggio:\n1️⃣ Nickname\n2️⃣ @ Telegram\n3️⃣ Prodotti desiderati`,
         { parse_mode: "Markdown" });
       break;
 
     case "OPEN_ASSISTENZA":
-      bot.sendMessage(chatId, "🆘 Scrivi il tuo messaggio per l’assistenza.");
+      assistenzaUsers.add(chatId);
+      bot.sendMessage(chatId, "🆘 Scrivi il tuo messaggio per l’assistenza. Sarà inviato agli admin.", { parse_mode: "Markdown" });
       break;
 
     case "OPEN_SPONSOR":
@@ -182,8 +191,16 @@ bot.on("callback_query", (q) => {
       break;
 
     case "OPEN_CANDIDATURA":
+      assistenzaUsers.add(chatId);
       bot.sendMessage(chatId,
-        `💼 *Candidatura*\n1️⃣ Dati personali\n2️⃣ Parlaci di te (passioni, carattere…)\n3️⃣ Perché dovremmo sceglierti\n4️⃣ Esperienze lavorative\n5️⃣ Competenze\n6️⃣ Pregi e difetti`,
+        `📝 *Come fare il curriculum*\n\nCompila il tuo curriculum seguendo questi punti:\n\n` +
+        `1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome, ore totali e settimanali (/tempo)\n` +
+        `2️⃣ *Parlaci di te*: chi sei, passioni...\n` +
+        `3️⃣ *Perché dovremmo sceglierti*\n` +
+        `4️⃣ *Esperienze lavorative*: se presenti e se lavori attualmente in un’azienda\n` +
+        `5️⃣ *Competenze*: uso della cassa e capacità di cucinare\n` +
+        `6️⃣ *Pregi e difetti*\n\n` +
+        `📍 *Consegna del curriculum*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
         { parse_mode: "Markdown" });
       break;
   }
@@ -192,13 +209,16 @@ bot.on("callback_query", (q) => {
 });
 
 // =====================
-// MESSAGE (COMMENTO)
+// MESSAGE (COMMENTO / MODULI / ASSISTENZA)
 // =====================
 bot.on("message", (msg) => {
   if (!msg.text || msg.text.startsWith("/")) return;
-  const userId = Number(msg.from.id);
-  const state = reviewState.get(userId);
 
+  const chatId = msg.chat.id;
+  const userId = Number(msg.from.id);
+
+  // ⭐ Commento recensione
+  const state = reviewState.get(userId);
   if (state && state.waitingComment) {
     reviewState.delete(userId);
     saveReview({ rating: state.rating, comment: escapeMarkdown(msg.text), userId });
@@ -206,13 +226,38 @@ bot.on("message", (msg) => {
     const avg = getAverage();
     const total = loadReviews().length;
 
-    bot.sendMessage(state.chatId,
+    bot.sendMessage(chatId,
       `✅ Recensione inviata correttamente!\n⭐ Voto: ${state.rating}/5\n💬 Commento: ${escapeMarkdown(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
 
     ADMIN_IDS.forEach(id => {
       bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${msg.from.first_name}\n⭐ ${state.rating}/5\n💬 ${escapeMarkdown(msg.text)}`);
     });
+    return;
   }
+
+  // =====================
+  // Moduli / Assistenza
+  if (assistenzaUsers.has(chatId)) {
+    bot.sendMessage(chatId, "✅ Messaggio inviato correttamente!");
+
+    ADMIN_IDS.forEach(id => {
+      bot.sendMessage(id,
+        `📩 *Nuovo modulo / assistenza*\n\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${msg.from.id}\n\n${escapeMarkdown(msg.text)}`,
+        { parse_mode: "Markdown" }
+      );
+      adminReplyMap[id] = chatId; // permette rispondere all'utente
+    });
+    return;
+  }
+
+  // Messaggi generici
+  bot.sendMessage(chatId, "✅ Modulo inviato correttamente!");
+  ADMIN_IDS.forEach(id => {
+    bot.sendMessage(id,
+      `📥 *Nuovo messaggio*\n\n👤 ${msg.from.first_name}\n🆔 ${msg.from.id}\n\n${escapeMarkdown(msg.text)}`,
+      { parse_mode: "Markdown" }
+    );
+  });
 });
 
 // =====================
