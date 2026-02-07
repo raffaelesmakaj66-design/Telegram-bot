@@ -24,12 +24,12 @@ const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 const REVIEWS_FILE = path.join(process.cwd(), "reviews.json");
 if (!fs.existsSync(REVIEWS_FILE)) fs.writeFileSync(REVIEWS_FILE, JSON.stringify([]));
 
-const reviewState = new Map();    // userId -> { rating, chatId, waitingComment }
+const reviewState = new Map();    
 const reviewCooldown = new Map();
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
-const userState = new Map();      // userId -> tipo modulo (ASSISTENZA, ORDINE, ASTA, SPONSOR)
-const adminReplyMap = new Map();  // adminId -> { userId, chatId }
+const userState = new Map();      
+const adminReplyMap = new Map();  
 const ADMINS = new Set([SUPER_ADMIN, ...ADMIN_IDS]);
 
 // =====================
@@ -205,7 +205,6 @@ bot.on("message", (msg) => {
     bot.sendMessage(targetChat, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escapeMarkdown(msg.text)}`, { parse_mode:"Markdown" });
     bot.sendMessage(chatId, "✅ Risposta inviata all’utente");
 
-    // notifico altri admin che c’è risposta disponibile
     ADMINS.forEach(id => { if (id !== userId) adminReplyMap.set(id, { userId: targetId, chatId: targetChat }); });
     return;
   }
@@ -218,16 +217,10 @@ bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
   const chatId = msg.chat.id;
   const fromId = msg.from.id;
 
-  if (!ADMINS.has(fromId)) {
-    bot.sendMessage(chatId,"❌ Non sei autorizzato a usare questo comando.");
-    return;
-  }
+  if (!ADMINS.has(fromId)) return bot.sendMessage(chatId,"❌ Non sei autorizzato a usare questo comando.");
 
   let reviews = loadReviews();
-  if (reviews.length === 0) {
-    bot.sendMessage(chatId,"⚠️ Nessuna recensione presente.");
-    return;
-  }
+  if (reviews.length === 0) return bot.sendMessage(chatId,"⚠️ Nessuna recensione presente.");
 
   const targetUserId = match[1] ? Number(match[1]) : null;
   if (targetUserId) {
@@ -247,4 +240,25 @@ bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
 // =====================
 bot.onText(/\/id/, (msg) => {
   bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
+});
+
+// =====================
+// /admin add / remove
+// =====================
+bot.onText(/\/admin (add|remove) (\d+)/, (msg, match) => {
+  const fromId = msg.from.id;
+  const chatId = msg.chat.id;
+  if (fromId !== SUPER_ADMIN) return bot.sendMessage(chatId,"❌ Solo il super admin può usare questo comando.");
+
+  const action = match[1];
+  const targetId = Number(match[2]);
+
+  if (action === "add") {
+    ADMINS.add(targetId);
+    bot.sendMessage(chatId, `✅ L'utente ${targetId} è stato aggiunto come admin.`);
+  } else {
+    if (targetId === SUPER_ADMIN) return bot.sendMessage(chatId,"❌ Non puoi rimuovere il super admin.");
+    ADMINS.delete(targetId);
+    bot.sendMessage(chatId, `✅ L'utente ${targetId} è stato rimosso dagli admin.`);
+  }
 });
