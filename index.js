@@ -7,7 +7,6 @@ import path from "path";
 // =====================
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const SUPER_ADMIN = Number(process.env.SUPER_ADMIN);
-
 if (!TOKEN || !SUPER_ADMIN) {
   console.error("❌ Config mancante");
   process.exit(1);
@@ -25,17 +24,17 @@ const DATA_FILE = path.join(process.cwd(), "chatlog.json");
 // =====================
 // STATI
 // =====================
-const reviewState = new Map();        // userId -> { rating, chatId, waitingComment }
-const reviewCooldown = new Map();     // userId -> timestamp
-const userState = new Map();          // userId -> tipo modulo ("ASSISTENZA", "ORDINE", "ASTA", "SPONSOR")
-const adminReplyMap = new Map();      // adminId -> { userId, chatId }
+const reviewState = new Map();       // userId -> { rating, chatId }
+const reviewCooldown = new Map();    
+const userState = new Map();         // userId -> tipo modulo: "ASSISTENZA", "ORDINE", etc
+const adminReplyMap = new Map();     // adminId -> { userId, chatId }
 const ADMINS = new Set([SUPER_ADMIN]);
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
 // =====================
-// HELPERS
+// HELPER
 // =====================
-const escape = (t) => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
+const escapeMarkdown = (t) => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
 
 const saveLog = (entry) => {
   let logs = [];
@@ -51,9 +50,8 @@ const getAllAdmins = () => Array.from(ADMINS);
 // =====================
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-
   bot.sendPhoto(chatId, WELCOME_IMAGE, {
-    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni:`,
+    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei bottoni qui sotto 👇`,
     parse_mode: "Markdown",
     reply_markup: {
       inline_keyboard: [
@@ -75,20 +73,18 @@ bot.on("callback_query", (q) => {
   const userId = Number(q.from.id);
   const chatId = q.message?.chat?.id || q.from.id;
 
-  // ⭐ Rating recensione
+  // ⭐ Recensione: voto
   if (q.data.startsWith("RATE_")) {
     const rating = Number(q.data.split("_")[1]);
-    const now = Date.now();
-    if (now - (reviewCooldown.get(userId) || 0) < REVIEW_COOLDOWN_MS) {
-      bot.answerCallbackQuery(q.id, { text: "⏳ Attendi un momento", show_alert: true });
+    const last = reviewCooldown.get(userId) || 0;
+    if (Date.now() - last < REVIEW_COOLDOWN_MS) {
+      bot.answerCallbackQuery(q.id, { text: "⏳ Attendi un po’ prima di votare di nuovo", show_alert: true });
       return;
     }
-
-    reviewCooldown.set(userId, now);
-    reviewState.set(userId, { rating, chatId, waitingComment: true });
-
+    reviewCooldown.set(userId, Date.now());
+    reviewState.set(userId, { rating, chatId });
     bot.answerCallbackQuery(q.id, { text: "⭐ Voto registrato!" });
-    bot.sendMessage(chatId, `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`, {
+    bot.sendMessage(chatId, `Hai votato ⭐ ${rating}/5\nScrivi un commento o premi Skip`, {
       reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `SKIP_${rating}` }]] }
     });
     return;
@@ -97,18 +93,17 @@ bot.on("callback_query", (q) => {
   // ⭐ Skip recensione
   if (q.data.startsWith("SKIP_")) {
     const rating = Number(q.data.split("_")[1]);
-    saveLog({ type: "review", rating, comment: null, userId, timestamp: new Date().toISOString() });
-
+    saveLog({ type:"review", rating, comment: null, userId, timestamp: new Date().toISOString() });
     bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5`);
-    getAllAdmins().forEach(id =>
-      bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5`)
-    );
+    getAllAdmins().forEach(id => {
+      bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5`);
+    });
     reviewState.delete(userId);
     return;
   }
 
   // MENU
-  switch (q.data) {
+  switch(q.data) {
     case "OPEN_REVIEW":
       bot.sendMessage(chatId, "⭐ Scegli un voto:", {
         reply_markup: { inline_keyboard: [[1,2,3,4,5].map(n => ({ text:`⭐ ${n}`, callback_data:`RATE_${n}` }))] }
@@ -131,18 +126,26 @@ bot.on("callback_query", (q) => {
 
     case "OPEN_ASSISTENZA":
       userState.set(userId, "ASSISTENZA");
-      bot.sendMessage(chatId, "🆘 Scrivi il messaggio per l’assistenza");
+      bot.sendMessage(chatId, "🆘 Scrivi il messaggio per l’assistenza", { parse_mode:"Markdown" });
       break;
 
     case "OPEN_SPONSOR":
       userState.set(userId, "SPONSOR");
-      bot.sendMessage(chatId, "📢 Scrivi la richiesta sponsor");
+      bot.sendMessage(chatId, "📢 Scrivi la richiesta sponsor", { parse_mode:"Markdown" });
       break;
 
     case "OPEN_CANDIDATURA":
       bot.sendMessage(chatId,
-        `📝 *Come fare il curriculum*\n1️⃣ Dati personali\n2️⃣ Parlaci di te\n3️⃣ Perché dovremmo sceglierti\n4️⃣ Esperienze\n5️⃣ Competenze\n6️⃣ Pregi e difetti\n\n📍 Bancarella 8`, 
-        { parse_mode:"Markdown" });
+`📝 *Come fare il curriculum*
+1️⃣ Dati personali
+2️⃣ Parlaci di te
+3️⃣ Perché dovremmo sceglierti
+4️⃣ Esperienze
+5️⃣ Competenze
+6️⃣ Pregi e difetti
+
+📍 Bancarella 8`,
+      { parse_mode:"Markdown" });
       break;
   }
 
@@ -150,79 +153,64 @@ bot.on("callback_query", (q) => {
 });
 
 // =====================
-// MESSAGGI UTENTE
+// MESSAGE HANDLER UNICO
 // =====================
 bot.on("message", (msg) => {
   if (!msg.text) return;
   const userId = msg.from.id;
   const chatId = msg.chat.id;
 
-  // COMMENTO RECENSIONE
+  // 1️⃣ Commento recensione
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
     saveLog({ type:"review", rating, comment: msg.text, userId, timestamp: new Date().toISOString() });
-
     bot.sendMessage(chatId, "✅ Recensione inviata correttamente!");
-    getAllAdmins().forEach(id =>
-      bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" })
-    );
-    return;
-  }
-
-  // MODULI / ASSISTENZA
-  if (userState.has(userId)) {
-    const type = userState.get(userId);
-    userState.delete(userId);
-
-    bot.sendMessage(chatId, type === "ASSISTENZA" ? "✅ Messaggio inviato correttamente!" : "✅ Modulo inviato con successo!");
-
     getAllAdmins().forEach(id => {
-      bot.sendMessage(id,
-        `📩 *${type}*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escape(msg.text)}`,
-        { parse_mode:"Markdown" }
-      );
-      // salva mapping per risposta
-      adminReplyMap.set(id, { userId, chatId });
+      bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escapeMarkdown(msg.text)}`, { parse_mode:"Markdown" });
     });
     return;
   }
 
-  // Messaggi generici
+  // 2️⃣ Moduli / Assistenza
+  if (userState.has(userId)) {
+    const type = userState.get(userId);
+    userState.delete(userId);
+    bot.sendMessage(chatId, type === "ASSISTENZA" ? "✅ Messaggio inviato correttamente!" : "✅ Modulo inviato con successo!");
+
+    getAllAdmins().forEach(id => {
+      bot.sendMessage(id,
+        `📩 *${type}*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escapeMarkdown(msg.text)}`,
+        { parse_mode:"Markdown" }
+      );
+      adminReplyMap.set(id, { userId, chatId }); // collega admin → utente
+    });
+    return;
+  }
+
+  // 3️⃣ Admin risponde
+  if (ADMINS.has(userId) && adminReplyMap.has(userId)) {
+    const { userId: targetId, chatId: targetChat } = adminReplyMap.get(userId);
+    adminReplyMap.delete(userId);
+    bot.sendMessage(targetChat, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escapeMarkdown(msg.text)}`, { parse_mode:"Markdown" });
+    bot.sendMessage(chatId, "✅ Risposta inviata all’utente");
+    saveLog({ type:"admin_reply", adminId: userId, userId: targetId, text: msg.text, timestamp: new Date().toISOString() });
+
+    // notifico altri admin che il messaggio è stato risposto
+    getAllAdmins().forEach(id => {
+      if (id !== userId) adminReplyMap.set(id, { userId: targetId, chatId: targetChat });
+    });
+    return;
+  }
+
+  // 4️⃣ Altri messaggi generici
   bot.sendMessage(chatId, "✅ Messaggio inviato correttamente!");
   getAllAdmins().forEach(id => {
     bot.sendMessage(id,
-      `📥 *Nuovo messaggio*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escape(msg.text)}`,
+      `📥 *Nuovo messaggio*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escapeMarkdown(msg.text)}`,
       { parse_mode:"Markdown" }
     );
   });
-});
-
-// =====================
-// RISPOSTA ADMIN
-// =====================
-bot.on("message", (msg) => {
-  const adminId = msg.from.id;
-  if (!ADMINS.has(adminId)) return;
-  if (!adminReplyMap.has(adminId)) return;
-  if (!msg.text || msg.text.startsWith("/")) return;
-
-  const { userId, chatId } = adminReplyMap.get(adminId);
-
-  bot.sendMessage(chatId, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
-  bot.sendMessage(adminId, "✅ Risposta inviata all’utente");
-
-  // notifica anche agli altri admin che c'è stata risposta
-  getAllAdmins().forEach(id => {
-    if (id !== adminId) {
-      bot.sendMessage(id, `ℹ️ ${msg.from.first_name} ha risposto all'utente ${userId}`);
-      // gli altri admin possono rispondere se vogliono
-      adminReplyMap.set(id, { userId, chatId });
-    }
-  });
-
-  saveLog({ type:"admin_reply", adminId, userId, text: msg.text, timestamp: new Date().toISOString() });
-  adminReplyMap.delete(adminId); // rimuovo mapping per admin che ha risposto
 });
 
 // =====================
