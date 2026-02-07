@@ -6,10 +6,10 @@ import fs from "fs";
 // =====================
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const ADMIN_IDS = process.env.ADMIN_ID?.split(",").map(id => Number(id.trim())) || [];
-const SUPER_ADMIN_ID = 123456789; // ← metti qui il tuo ID Telegram
+const SUPER_ADMIN_ID = Number(process.env.SUPER_ADMIN_ID); // ← il tuo ID numerico
 
-if (!TOKEN || ADMIN_IDS.length === 0) {
-  console.error("❌ TELEGRAM_TOKEN o ADMIN_ID mancanti");
+if (!TOKEN || !SUPER_ADMIN_ID) {
+  console.error("❌ TELEGRAM_TOKEN o SUPER_ADMIN_ID mancanti");
   process.exit(1);
 }
 
@@ -18,7 +18,7 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // =====================
 // IMMAGINE DI BENVENUTO
 // =====================
-const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ"; 
+const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ";
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
 // =====================
@@ -204,8 +204,7 @@ bot.on("callback_query", (q) => {
 // MESSAGE
 // =====================
 bot.on("message", (msg) => {
-  if (!msg.text || msg.text.startsWith("/")) return;
-
+  if (!msg.text) return;
   const chatId = msg.chat.id;
   const userId = Number(msg.from.id);
 
@@ -227,13 +226,14 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // MODULI / ASSISTENZA
+  // MODULI / ASSISTENZA / SPONSOR
   const currentState = userState.get(userId);
   if (currentState) {
     userState.delete(userId);
 
     let responseText = "✅ Modulo inviato correttamente!";
     if (currentState === "ASSISTENZA") responseText = "✅ Messaggio inviato correttamente!";
+    if (currentState === "SPONSOR") responseText = "✅ Messaggio inviato correttamente!";
 
     bot.sendMessage(chatId, responseText);
 
@@ -291,36 +291,26 @@ bot.onText(/\/delreview(?: (\d+))?/, (msg, match) => {
 });
 
 // =====================
-// /admin add/remove (solo super admin)
+// /admin add/remove (solo SUPER ADMIN)
 // =====================
 bot.onText(/\/admin (add|remove) (\d+)/, (msg, match) => {
-  const chatId = msg.chat.id;
   const fromId = Number(msg.from.id);
+  const chatId = msg.chat.id;
 
   if (fromId !== SUPER_ADMIN_ID) {
     bot.sendMessage(chatId, "❌ Solo il super admin può usare questo comando.");
     return;
   }
 
-  const action = match[1];       // 'add' o 'remove'
+  const action = match[1];   // add o remove
   const targetId = Number(match[2]);
 
   if (action === "add") {
-    if (!ADMIN_IDS.includes(targetId)) {
-      ADMIN_IDS.push(targetId);
-      bot.sendMessage(chatId, `✅ Utente ${targetId} aggiunto come admin.`);
-    } else {
-      bot.sendMessage(chatId, `⚠️ Utente ${targetId} è già admin.`);
-    }
-  }
-
-  if (action === "remove") {
-    if (ADMIN_IDS.includes(targetId)) {
-      const index = ADMIN_IDS.indexOf(targetId);
-      ADMIN_IDS.splice(index, 1);
-      bot.sendMessage(chatId, `✅ Utente ${targetId} rimosso dagli admin.`);
-    } else {
-      bot.sendMessage(chatId, `⚠️ Utente ${targetId} non è admin.`);
-    }
+    if (!ADMIN_IDS.includes(targetId)) ADMIN_IDS.push(targetId);
+    bot.sendMessage(chatId, `✅ Utente ${targetId} aggiunto come admin.`);
+  } else if (action === "remove") {
+    const index = ADMIN_IDS.indexOf(targetId);
+    if (index !== -1) ADMIN_IDS.splice(index, 1);
+    bot.sendMessage(chatId, `✅ Utente ${targetId} rimosso dagli admin.`);
   }
 });
