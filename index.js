@@ -1,6 +1,5 @@
 import TelegramBot from "node-telegram-bot-api";
-import fs from "fs";
-import path from "path";
+import Database from "better-sqlite3";
 
 // =====================
 // CONFIG
@@ -16,16 +15,46 @@ if (!TOKEN || !SUPER_ADMIN) {
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 // =====================
-// FILE DATI
+// DATABASE
 // =====================
-const DATA_FILE = path.join(process.cwd(), "bot_data.json");
+const db = new Database("bot.db");
 
-// Inizializzazione dati persistenti
-let botData = { admins: [SUPER_ADMIN], reviews: [], users: [] };
-if (fs.existsSync(DATA_FILE)) {
-  botData = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-} else {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(botData, null, 2));
+// Tabelle
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS admins (
+    id INTEGER PRIMARY KEY
+  )
+`).run();
+
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY
+  )
+`).run();
+
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    rating INTEGER,
+    comment TEXT,
+    created_at TEXT
+  )
+`).run();
+
+// =====================
+// STATI
+// =====================
+const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
+const reviewCooldown = new Map();
+const userState = new Map(); // userId -> tipo modulo/assistenza
+const adminReplyMap = {};    // adminId -> userId per risposta
+
+// Carica admin dal DB
+const ADMINS = new Set(db.prepare("SELECT id FROM admins").all().map(r => r.id));
+if (!ADMINS.has(SUPER_ADMIN)) {
+  db.prepare("INSERT OR IGNORE INTO admins (id) VALUES (?)").run(SUPER_ADMIN);
+  ADMINS.add(SUPER_ADMIN);
 }
 
 // =====================
@@ -35,24 +64,14 @@ const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4U
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
-// =====================
-// STATI
-// =====================
-const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
-const reviewCooldown = new Map();
-const userState = new Map();   // userId -> tipo modulo/assistenza
-const adminReplyMap = {};      // adminId -> userId per risposta
-const ADMINS = new Set(botData.admins);
+const escape = (t) => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
 
 // =====================
-// FUNZIONI UTILI
+// FUNZIONI
 // =====================
-const saveBotData = () => fs.writeFileSync(DATA_FILE, JSON.stringify(botData, null, 2));
-const escape = (t) => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
 const getAverage = () => {
-  if (botData.reviews.length === 0) return "0.0";
-  const sum = botData.reviews.reduce((a, r) => a + r.rating, 0);
-  return (sum / botData.reviews.length).toFixed(1);
+  const row = db.prepare("SELECT AVG(rating) as avg FROM reviews").get();
+  return row.avg ? row.avg.toFixed(1) : "0.0";
 };
 
 // =====================
@@ -60,12 +79,9 @@ const getAverage = () => {
 // =====================
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
+  const userId = msg.from.id;
 
-  // salva utente se nuovo
-  if (!botData.users.includes(chatId)) {
-    botData.users.push(chatId);
-    saveBotData();
-  }
+  db.prepare("INSERT OR IGNORE INTO users (id) VALUES (?)").run(userId);
 
   bot.sendPhoto(chatId, WELCOME_IMAGE, {
     caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni:`,
@@ -115,10 +131,11 @@ bot.on("callback_query", (q) => {
 
   if (q.data.startsWith("SKIP_")) {
     const rating = Number(q.data.split("_")[1]);
-    botData.reviews.push({ rating, comment: null, userId });
-    saveBotData();
+    db.prepare("INSERT INTO reviews (user_id, rating, comment, created_at) VALUES (?, ?, ?, ?)")
+      .run(userId, rating, null, new Date().toISOString());
     const avg = getAverage();
-    const total = botData.reviews.length;
+    const total = db.prepare("SELECT COUNT(*) as n FROM reviews").get().n;
+
     bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5\n📊 Media attuale: ${avg} (${total} voti)`);
     ADMINS.forEach(id => {
       bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`);
@@ -191,10 +208,11 @@ bot.on("message", (msg) => {
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
-    botData.reviews.push({ rating, comment: msg.text, userId });
-    saveBotData();
+    db.prepare("INSERT INTO reviews (user_id, rating, comment, created_at) VALUES (?, ?, ?, ?)")
+      .run(userId, rating, msg.text, new Date().toISOString());
+
     const avg = getAverage();
-    const total = botData.reviews.length;
+    const total = db.prepare("SELECT COUNT(*) as n FROM reviews").get().n;
 
     bot.sendMessage(chatId, `✅ Recensione inviata correttamente!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
     ADMINS.forEach(id => bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" }));
@@ -212,12 +230,7 @@ bot.on("message", (msg) => {
       adminReplyMap[id] = userId; // collega admin -> utente
     });
 
-    // salva utente in bot_data.json per stats
-    if (!botData.users.includes(userId)) {
-      botData.users.push(userId);
-      saveBotData();
-    }
-
+    db.prepare("INSERT OR IGNORE INTO users (id) VALUES (?)").run(userId);
     return;
   }
 
@@ -226,7 +239,6 @@ bot.on("message", (msg) => {
     const targetUser = adminReplyMap[userId];
     bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
     bot.sendMessage(userId, "✅ Messaggio inviato con successo!");
-    // notifico altri admin
     ADMINS.forEach(aid => {
       if (aid !== userId) bot.sendMessage(aid, `💬 *${msg.from.first_name}* ha risposto a ${targetUser}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
     });
@@ -243,9 +255,9 @@ bot.onText(/\/admin add (\d+)/, (msg, match) => {
   if (fromId !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
   const newAdmin = Number(match[1]);
   if (ADMINS.has(newAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin già presente.");
+
+  db.prepare("INSERT OR IGNORE INTO admins (id) VALUES (?)").run(newAdmin);
   ADMINS.add(newAdmin);
-  botData.admins.push(newAdmin);
-  saveBotData();
   bot.sendMessage(msg.chat.id, `✅ Admin aggiunto: ${newAdmin}`);
 });
 
@@ -254,9 +266,9 @@ bot.onText(/\/admin remove (\d+)/, (msg, match) => {
   if (fromId !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
   const remAdmin = Number(match[1]);
   if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
+
+  db.prepare("DELETE FROM admins WHERE id = ?").run(remAdmin);
   ADMINS.delete(remAdmin);
-  botData.admins = botData.admins.filter(a => a !== remAdmin);
-  saveBotData();
   bot.sendMessage(msg.chat.id, `✅ Admin rimosso: ${remAdmin}`);
 });
 
@@ -272,8 +284,8 @@ bot.onText(/\/id/, (msg) => {
 // =====================
 bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
-  const totalUsers = botData.users.length;
-  const totalReviews = botData.reviews.length;
+  const totalUsers = db.prepare("SELECT COUNT(*) as n FROM users").get().n;
+  const totalReviews = db.prepare("SELECT COUNT(*) as n FROM reviews").get().n;
   const avgRating = getAverage();
 
   bot.sendMessage(chatId,
