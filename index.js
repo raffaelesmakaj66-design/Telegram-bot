@@ -203,7 +203,7 @@ bot.on("callback_query", (q) => {
 
     case "OPEN_SPONSOR":
       userState.set(userId, "SPONSOR");
-      bot.sendMessage(chatId, "📢 *Richiesta Sponsor*\nScrivi quanto vuoi farlo durare e manda il messaggio sponsor", { parse_mode: "Markdown" });
+      bot.sendMessage(chatId, "📢 *Richiesta Sponsor*\nScrivi quanto vuoi farlo durare e manda il messaggio sponsor, 500 per 12h", { parse_mode: "Markdown" });
       break;
 
     case "OPEN_CANDIDATURA":
