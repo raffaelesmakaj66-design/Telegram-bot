@@ -21,7 +21,7 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 const DATA_FILE = path.join(process.cwd(), "bot_data.json");
 
 // Inizializzazione dati persistenti
-let botData = { admins: [SUPER_ADMIN], reviews: [], users: [], messages: [] };
+let botData = { admins: [SUPER_ADMIN], reviews: [], users: [] };
 if (fs.existsSync(DATA_FILE)) {
   botData = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
 } else {
@@ -60,7 +60,8 @@ const getAverage = () => {
 // =====================
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  // salvo che l'utente ha avviato il bot
+
+  // salva utente se nuovo
   if (!botData.users.includes(chatId)) {
     botData.users.push(chatId);
     saveBotData();
@@ -114,7 +115,7 @@ bot.on("callback_query", (q) => {
 
   if (q.data.startsWith("SKIP_")) {
     const rating = Number(q.data.split("_")[1]);
-    botData.reviews.push({ rating, comment: null, userId, timestamp: new Date().toISOString() });
+    botData.reviews.push({ rating, comment: null, userId });
     saveBotData();
     const avg = getAverage();
     const total = botData.reviews.length;
@@ -166,7 +167,7 @@ bot.on("callback_query", (q) => {
 `1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome e ore disponibili\n` +
 `2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni\n` +
 `3️⃣ *Perché dovremmo sceglierti?*\n` +
-`4️⃣ *Esperienze lavorative*: se presenti e se lavori attualmente in un’azienda\n` +
+`4️⃣ *Esperienze lavorative*: se presenti e se attualmente lavori in un’azienda\n` +
 `5️⃣ *Competenze pratiche*: uso della cassa, capacità di cucinare\n` +
 `6️⃣ *Pregi e difetti*\n\n` +
 `📍 *Consegna del curriculum*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
@@ -189,15 +190,13 @@ bot.on("message", (msg) => {
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
-    botData.reviews.push({ rating, comment: msg.text, userId, timestamp: new Date().toISOString() });
+    botData.reviews.push({ rating, comment: msg.text, userId });
     saveBotData();
     const avg = getAverage();
     const total = botData.reviews.length;
 
     bot.sendMessage(chatId, `✅ Recensione inviata correttamente!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
-    ADMINS.forEach(id =>
-      bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" })
-    );
+    ADMINS.forEach(id => bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" }));
     return;
   }
 
@@ -206,15 +205,18 @@ bot.on("message", (msg) => {
     const type = userState.get(userId);
     userState.delete(userId);
 
-    // salvo messaggio utente
-    botData.messages.push({ type, userId, text: msg.text, timestamp: new Date().toISOString() });
-    saveBotData();
-
-    bot.sendMessage(chatId, "✅ Modulo inviato con successo!");
+    bot.sendMessage(chatId, "✅ Messaggio inviato con successo!");
     ADMINS.forEach(id => {
       bot.sendMessage(id, `📩 *${type}*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${userId}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
       adminReplyMap[id] = userId; // collega admin -> utente
     });
+
+    // salva utente in bot_data.json per stats
+    if (!botData.users.includes(userId)) {
+      botData.users.push(userId);
+      saveBotData();
+    }
+
     return;
   }
 
@@ -223,15 +225,10 @@ bot.on("message", (msg) => {
     const targetUser = adminReplyMap[userId];
     bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
     bot.sendMessage(userId, "✅ Messaggio inviato con successo!");
-    // notifico gli altri admin
+    // notifico altri admin
     ADMINS.forEach(aid => {
-      if (aid !== userId) {
-        bot.sendMessage(aid, `💬 *${msg.from.first_name}* ha risposto a ${targetUser}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
-      }
+      if (aid !== userId) bot.sendMessage(aid, `💬 *${msg.from.first_name}* ha risposto a ${targetUser}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
     });
-    // salvo la risposta admin
-    botData.messages.push({ type:"ADMIN_REPLY", adminId: userId, userId: targetUser, text: msg.text, timestamp: new Date().toISOString() });
-    saveBotData();
     delete adminReplyMap[userId];
     return;
   }
@@ -242,10 +239,7 @@ bot.on("message", (msg) => {
 // =====================
 bot.onText(/\/admin add (\d+)/, (msg, match) => {
   const fromId = msg.from.id;
-  if (fromId !== SUPER_ADMIN) {
-    bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
-    return;
-  }
+  if (fromId !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
   const newAdmin = Number(match[1]);
   if (ADMINS.has(newAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin già presente.");
   ADMINS.add(newAdmin);
@@ -256,10 +250,7 @@ bot.onText(/\/admin add (\d+)/, (msg, match) => {
 
 bot.onText(/\/admin remove (\d+)/, (msg, match) => {
   const fromId = msg.from.id;
-  if (fromId !== SUPER_ADMIN) {
-    bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
-    return;
-  }
+  if (fromId !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
   const remAdmin = Number(match[1]);
   if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
   ADMINS.delete(remAdmin);
@@ -269,25 +260,23 @@ bot.onText(/\/admin remove (\d+)/, (msg, match) => {
 });
 
 // =====================
+// COMANDO /id
+// =====================
+bot.onText(/\/id/, (msg) => {
+  bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
+});
+
+// =====================
 // COMANDO /stats
 // =====================
 bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
   const totalUsers = botData.users.length;
   const totalReviews = botData.reviews.length;
-  const totalAdmins = botData.admins.length;
+  const avgRating = getAverage();
+
   bot.sendMessage(chatId,
-    `📊 *Statistiche Bot*\n\n` +
-    `👤 Utenti unici: ${totalUsers}\n` +
-    `⭐ Recensioni totali: ${totalReviews}\n` +
-    `🛡️ Admin totali: ${totalAdmins}`,
+    `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
     { parse_mode:"Markdown" }
   );
-});
-
-// =====================
-// COMANDO /id
-// =====================
-bot.onText(/\/id/, (msg) => {
-  bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
 });
