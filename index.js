@@ -19,7 +19,9 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // FILE DATI
 // =====================
 const DATA_FILE = path.join(process.cwd(), "bot_data.json");
-let botData = { admins: [SUPER_ADMIN], reviews: [], users: [] };
+
+// Inizializzazione dati persistenti
+let botData = { admins: [SUPER_ADMIN], reviews: [], users: [], messages: [] };
 if (fs.existsSync(DATA_FILE)) {
   botData = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
 } else {
@@ -38,9 +40,8 @@ const REVIEW_COOLDOWN_MS = 60 * 1000;
 // =====================
 const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
-const userState = new Map(); // userId -> tipo modulo/assistenza/candidatura
-const userAdminMap = {};      // userId -> adminId corrente a cui è assegnato
-const adminReplyMap = {};     // adminId -> userId a cui deve rispondere
+const userState = new Map();   // userId -> tipo modulo/assistenza
+const adminReplyMap = {};      // adminId -> userId per risposta
 const ADMINS = new Set(botData.admins);
 
 // =====================
@@ -59,7 +60,7 @@ const getAverage = () => {
 // =====================
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-  // salva utente se nuovo
+  // salvo che l'utente ha avviato il bot
   if (!botData.users.includes(chatId)) {
     botData.users.push(chatId);
     saveBotData();
@@ -71,8 +72,14 @@ bot.onText(/\/start/, (msg) => {
     reply_markup: {
       inline_keyboard: [
         [{ text: "📣 Canale", url: CHANNEL_URL }],
-        [{ text: "⚖️ Aste", callback_data: "OPEN_ASTA" }, { text: "📄 Listino", callback_data: "OPEN_LISTINO" }],
-        [{ text: "📝 Ordina", callback_data: "OPEN_ORDINI" }, { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }],
+        [
+          { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
+          { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
+        ],
+        [
+          { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
+          { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
+        ],
         [{ text: "⭐ Lascia una Recensione", callback_data: "OPEN_REVIEW" }],
         [{ text: "📢 Richiedi uno Sponsor", callback_data: "OPEN_SPONSOR" }],
         [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
@@ -107,7 +114,7 @@ bot.on("callback_query", (q) => {
 
   if (q.data.startsWith("SKIP_")) {
     const rating = Number(q.data.split("_")[1]);
-    botData.reviews.push({ rating, comment: null, userId });
+    botData.reviews.push({ rating, comment: null, userId, timestamp: new Date().toISOString() });
     saveBotData();
     const avg = getAverage();
     const total = botData.reviews.length;
@@ -159,10 +166,11 @@ bot.on("callback_query", (q) => {
 `1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome e ore disponibili\n` +
 `2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni\n` +
 `3️⃣ *Perché dovremmo sceglierti?*\n` +
-`4️⃣ *Esperienze lavorative*: se presenti e se attualmente lavori in un’azienda\n` +
+`4️⃣ *Esperienze lavorative*: se presenti e se lavori attualmente in un’azienda\n` +
 `5️⃣ *Competenze pratiche*: uso della cassa, capacità di cucinare\n` +
 `6️⃣ *Pregi e difetti*\n\n` +
-`📍 *Consegna del curriculum*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`, { parse_mode:"Markdown" });
+`📍 *Consegna del curriculum*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
+{ parse_mode: "Markdown" });
       break;
   }
 
@@ -178,15 +186,18 @@ bot.on("message", (msg) => {
   const userId = msg.from.id;
 
   // COMMENTO RECENSIONE
-  if (reviewState.has(userId) && reviewState.get(userId).waitingComment) {
+  if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
-    botData.reviews.push({ rating, comment: msg.text, userId });
+    botData.reviews.push({ rating, comment: msg.text, userId, timestamp: new Date().toISOString() });
     saveBotData();
     const avg = getAverage();
     const total = botData.reviews.length;
+
     bot.sendMessage(chatId, `✅ Recensione inviata correttamente!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
-    ADMINS.forEach(id => bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" }));
+    ADMINS.forEach(id =>
+      bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" })
+    );
     return;
   }
 
@@ -195,15 +206,14 @@ bot.on("message", (msg) => {
     const type = userState.get(userId);
     userState.delete(userId);
 
-    // assegna admin disponibile
-    const adminsArray = Array.from(ADMINS);
-    const assignedAdmin = adminsArray[Math.floor(Math.random() * adminsArray.length)];
-    userAdminMap[userId] = assignedAdmin;
-    adminReplyMap[assignedAdmin] = userId;
+    // salvo messaggio utente
+    botData.messages.push({ type, userId, text: msg.text, timestamp: new Date().toISOString() });
+    saveBotData();
 
-    bot.sendMessage(chatId, type === "ASSISTENZA" ? "✅ Messaggio inviato con successo!" : "✅ Modulo inviato con successo!");
+    bot.sendMessage(chatId, "✅ Modulo inviato con successo!");
     ADMINS.forEach(id => {
       bot.sendMessage(id, `📩 *${type}*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${userId}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
+      adminReplyMap[id] = userId; // collega admin -> utente
     });
     return;
   }
@@ -213,10 +223,16 @@ bot.on("message", (msg) => {
     const targetUser = adminReplyMap[userId];
     bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
     bot.sendMessage(userId, "✅ Messaggio inviato con successo!");
-    // notifico altri admin
+    // notifico gli altri admin
     ADMINS.forEach(aid => {
-      if (aid !== userId) bot.sendMessage(aid, `💬 *${msg.from.first_name}* ha risposto a ${targetUser}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
+      if (aid !== userId) {
+        bot.sendMessage(aid, `💬 *${msg.from.first_name}* ha risposto a ${targetUser}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
+      }
     });
+    // salvo la risposta admin
+    botData.messages.push({ type:"ADMIN_REPLY", adminId: userId, userId: targetUser, text: msg.text, timestamp: new Date().toISOString() });
+    saveBotData();
+    delete adminReplyMap[userId];
     return;
   }
 });
@@ -225,7 +241,11 @@ bot.on("message", (msg) => {
 // COMANDI ADMIN
 // =====================
 bot.onText(/\/admin add (\d+)/, (msg, match) => {
-  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
+  const fromId = msg.from.id;
+  if (fromId !== SUPER_ADMIN) {
+    bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
+    return;
+  }
   const newAdmin = Number(match[1]);
   if (ADMINS.has(newAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin già presente.");
   ADMINS.add(newAdmin);
@@ -235,7 +255,11 @@ bot.onText(/\/admin add (\d+)/, (msg, match) => {
 });
 
 bot.onText(/\/admin remove (\d+)/, (msg, match) => {
-  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
+  const fromId = msg.from.id;
+  if (fromId !== SUPER_ADMIN) {
+    bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
+    return;
+  }
   const remAdmin = Number(match[1]);
   if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
   ADMINS.delete(remAdmin);
@@ -245,19 +269,25 @@ bot.onText(/\/admin remove (\d+)/, (msg, match) => {
 });
 
 // =====================
+// COMANDO /stats
+// =====================
+bot.onText(/\/stats/, (msg) => {
+  const chatId = msg.chat.id;
+  const totalUsers = botData.users.length;
+  const totalReviews = botData.reviews.length;
+  const totalAdmins = botData.admins.length;
+  bot.sendMessage(chatId,
+    `📊 *Statistiche Bot*\n\n` +
+    `👤 Utenti unici: ${totalUsers}\n` +
+    `⭐ Recensioni totali: ${totalReviews}\n` +
+    `🛡️ Admin totali: ${totalAdmins}`,
+    { parse_mode:"Markdown" }
+  );
+});
+
+// =====================
 // COMANDO /id
 // =====================
 bot.onText(/\/id/, (msg) => {
   bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
-});
-
-// =====================
-// COMANDO /stats
-// =====================
-bot.onText(/\/stats/, (msg) => {
-  if (!ADMINS.has(msg.from.id)) return bot.sendMessage(msg.chat.id, "❌ Solo gli admin possono vedere le statistiche.");
-  const usersCount = botData.users.length;
-  const reviewsCount = botData.reviews.length;
-  const adminsCount = ADMINS.size;
-  bot.sendMessage(msg.chat.id, `📊 *Statistiche Bot*\n• Utenti totali: ${usersCount}\n• Recensioni: ${reviewsCount}\n• Admin: ${adminsCount}`, { parse_mode:"Markdown" });
 });
