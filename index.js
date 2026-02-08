@@ -157,9 +157,16 @@ bot.on("callback_query", (q) => {
     OPEN_SPONSOR:
       "📢 *Richiesta Sponsor*\n\nScrivi la tua richiesta.",
     OPEN_CANDIDATURA:
-      "📝 *Modulo Candidatura Dipendente*\n\n" +
-      "1️⃣ Dati personali\n2️⃣ Parlaci di te\n3️⃣ Perché dovremmo sceglierti\n" +
-      "4️⃣ Esperienze\n5️⃣ Competenze\n6️⃣ Pregi e difetti\n\n📍 Bancarella 8"
+  "📝 *Modulo Candidatura Dipendente*\n\n" +
+  "*Compila il tuo curriculum seguendo questi punti:*\n\n" +
+  "1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome e ore disponibili\n" +
+  "2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni\n" +
+  "3️⃣ *Perché dovremmo sceglierti?*\n" +
+  "4️⃣ *Esperienze lavorative*: se presenti e se attualmente lavori in un’azienda\n" +
+  "5️⃣ *Competenze pratiche*: uso della cassa, capacità di cucinare\n" +
+  "6️⃣ *Pregi e difetti*\n\n" +
+  "📍 *Consegna del curriculum:*\n" +
+  "Bancarella 8, coordinate -505 64 22, davanti all’ospedale"
   };
 
   if (texts[q.data]) {
