@@ -19,8 +19,6 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 // FILE DATI
 // =====================
 const DATA_FILE = path.join(process.cwd(), "bot_data.json");
-
-// Inizializzazione dati persistenti
 let botData = { admins: [SUPER_ADMIN], reviews: [], users: [] };
 if (fs.existsSync(DATA_FILE)) {
   botData = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
@@ -40,12 +38,13 @@ const REVIEW_COOLDOWN_MS = 60 * 1000;
 // =====================
 const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
-const userState = new Map();   // userId -> tipo modulo/assistenza
-const adminReplyMap = {};      // adminId -> userId per risposta
+const userState = new Map(); // userId -> tipo modulo/assistenza/candidatura
+const userAdminMap = {};      // userId -> adminId corrente a cui è assegnato
+const adminReplyMap = {};     // adminId -> userId a cui deve rispondere
 const ADMINS = new Set(botData.admins);
 
 // =====================
-// FUNZIONI
+// FUNZIONI UTILI
 // =====================
 const saveBotData = () => fs.writeFileSync(DATA_FILE, JSON.stringify(botData, null, 2));
 const escape = (t) => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
@@ -60,27 +59,20 @@ const getAverage = () => {
 // =====================
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
-
-  // registra utente se nuovo
-  if (!botData.users.includes(msg.from.id)) {
-    botData.users.push(msg.from.id);
+  // salva utente se nuovo
+  if (!botData.users.includes(chatId)) {
+    botData.users.push(chatId);
     saveBotData();
   }
 
   bot.sendPhoto(chatId, WELCOME_IMAGE, {
-    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei bottoni:`,
+    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni:`,
     parse_mode: "Markdown",
     reply_markup: {
       inline_keyboard: [
         [{ text: "📣 Canale", url: CHANNEL_URL }],
-        [
-          { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
-          { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
-        ],
-        [
-          { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
-          { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
-        ],
+        [{ text: "⚖️ Aste", callback_data: "OPEN_ASTA" }, { text: "📄 Listino", callback_data: "OPEN_LISTINO" }],
+        [{ text: "📝 Ordina", callback_data: "OPEN_ORDINI" }, { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }],
         [{ text: "⭐ Lascia una Recensione", callback_data: "OPEN_REVIEW" }],
         [{ text: "📢 Richiedi uno Sponsor", callback_data: "OPEN_SPONSOR" }],
         [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
@@ -132,9 +124,7 @@ bot.on("callback_query", (q) => {
     case "OPEN_REVIEW":
       bot.sendMessage(chatId, "⭐ *Lascia una recensione*\nSeleziona un voto da 1 a 5:", {
         parse_mode: "Markdown",
-        reply_markup: {
-          inline_keyboard: [[1,2,3,4,5].map(n => ({ text:`⭐ ${n}`, callback_data:`RATE_${n}` }))]
-        }
+        reply_markup: { inline_keyboard: [[1,2,3,4,5].map(n => ({ text:`⭐ ${n}`, callback_data:`RATE_${n}` }))] }
       });
       break;
 
@@ -172,8 +162,7 @@ bot.on("callback_query", (q) => {
 `4️⃣ *Esperienze lavorative*: se presenti e se attualmente lavori in un’azienda\n` +
 `5️⃣ *Competenze pratiche*: uso della cassa, capacità di cucinare\n` +
 `6️⃣ *Pregi e difetti*\n\n` +
-`📍 *Consegna del curriculum*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
-{ parse_mode: "Markdown" });
+`📍 *Consegna del curriculum*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`, { parse_mode:"Markdown" });
       break;
   }
 
@@ -184,19 +173,18 @@ bot.on("callback_query", (q) => {
 // MESSAGE
 // =====================
 bot.on("message", (msg) => {
-  if (!msg.text || msg.text.startsWith("/")) return;
+  if (!msg.text) return;
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
   // COMMENTO RECENSIONE
-  if (reviewState.has(userId)) {
+  if (reviewState.has(userId) && reviewState.get(userId).waitingComment) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
     botData.reviews.push({ rating, comment: msg.text, userId });
     saveBotData();
     const avg = getAverage();
     const total = botData.reviews.length;
-
     bot.sendMessage(chatId, `✅ Recensione inviata correttamente!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
     ADMINS.forEach(id => bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" }));
     return;
@@ -206,10 +194,16 @@ bot.on("message", (msg) => {
   if (userState.has(userId)) {
     const type = userState.get(userId);
     userState.delete(userId);
+
+    // assegna admin disponibile
+    const adminsArray = Array.from(ADMINS);
+    const assignedAdmin = adminsArray[Math.floor(Math.random() * adminsArray.length)];
+    userAdminMap[userId] = assignedAdmin;
+    adminReplyMap[assignedAdmin] = userId;
+
     bot.sendMessage(chatId, type === "ASSISTENZA" ? "✅ Messaggio inviato con successo!" : "✅ Modulo inviato con successo!");
     ADMINS.forEach(id => {
       bot.sendMessage(id, `📩 *${type}*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${userId}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
-      adminReplyMap[id] = userId; // collega admin -> utente
     });
     return;
   }
@@ -218,12 +212,11 @@ bot.on("message", (msg) => {
   if (ADMINS.has(userId) && adminReplyMap[userId]) {
     const targetUser = adminReplyMap[userId];
     bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
-    bot.sendMessage(userId, "✅ Risposta inviata!");
-    // notifico gli altri admin
+    bot.sendMessage(userId, "✅ Messaggio inviato con successo!");
+    // notifico altri admin
     ADMINS.forEach(aid => {
       if (aid !== userId) bot.sendMessage(aid, `💬 *${msg.from.first_name}* ha risposto a ${targetUser}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
     });
-    delete adminReplyMap[userId];
     return;
   }
 });
@@ -232,11 +225,7 @@ bot.on("message", (msg) => {
 // COMANDI ADMIN
 // =====================
 bot.onText(/\/admin add (\d+)/, (msg, match) => {
-  const fromId = msg.from.id;
-  if (fromId !== SUPER_ADMIN) {
-    bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
-    return;
-  }
+  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
   const newAdmin = Number(match[1]);
   if (ADMINS.has(newAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin già presente.");
   ADMINS.add(newAdmin);
@@ -246,11 +235,7 @@ bot.onText(/\/admin add (\d+)/, (msg, match) => {
 });
 
 bot.onText(/\/admin remove (\d+)/, (msg, match) => {
-  const fromId = msg.from.id;
-  if (fromId !== SUPER_ADMIN) {
-    bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
-    return;
-  }
+  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
   const remAdmin = Number(match[1]);
   if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
   ADMINS.delete(remAdmin);
@@ -260,20 +245,19 @@ bot.onText(/\/admin remove (\d+)/, (msg, match) => {
 });
 
 // =====================
-// /id
+// COMANDO /id
 // =====================
 bot.onText(/\/id/, (msg) => {
   bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
 });
 
 // =====================
-// /stats
+// COMANDO /stats
 // =====================
 bot.onText(/\/stats/, (msg) => {
-  const chatId = msg.chat.id;
-  const totalUsers = botData.users.length;
-  const totalReviews = botData.reviews.length;
-  const totalAdmins = ADMINS.size;
-
-  bot.sendMessage(chatId, `📊 *Statistiche Bot:*\n\n👤 Utenti unici: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n🛡️ Admin attivi: ${totalAdmins}`, { parse_mode:"Markdown" });
+  if (!ADMINS.has(msg.from.id)) return bot.sendMessage(msg.chat.id, "❌ Solo gli admin possono vedere le statistiche.");
+  const usersCount = botData.users.length;
+  const reviewsCount = botData.reviews.length;
+  const adminsCount = ADMINS.size;
+  bot.sendMessage(msg.chat.id, `📊 *Statistiche Bot*\n• Utenti totali: ${usersCount}\n• Recensioni: ${reviewsCount}\n• Admin: ${adminsCount}`, { parse_mode:"Markdown" });
 });
