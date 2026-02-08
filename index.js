@@ -183,6 +183,7 @@ bot.on("callback_query", (q) => {
 // =====================
 bot.on("message", (msg) => {
   if (!msg.text) return;
+  if (msg.text.startsWith("/")) return;
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
