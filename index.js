@@ -22,7 +22,7 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 console.log("✅ Bot avviato correttamente");
 
 // =====================
-// DATABASE (SQLite locale, attenzione: non persistente su Railway)
+// DATABASE
 // =====================
 const db = new sqlite3.Database("./bot.db", (err) => {
   if (err) console.error("❌ Errore DB:", err.message);
@@ -67,16 +67,22 @@ db.all("SELECT id FROM admins", [], (err, rows) => {
 });
 
 // =====================
-// STATO
+// STATI
 // =====================
-const reviewState = new Map();
+const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
-const userState = new Map();
-const adminReplyMap = {};
+const userState = new Map(); // userId -> tipo modulo/assistenza
+const adminReplyMap = {};    // adminId -> userId per risposta
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
 // =====================
-// HELPERS
+// COSTANTI
+// =====================
+const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ";
+const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
+
+// =====================
+// FUNZIONI UTILI
 // =====================
 const escape = (t) => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
 const getAverage = (callback) => {
@@ -86,23 +92,44 @@ const getAverage = (callback) => {
 };
 
 // =====================
-// START
+// COMANDO /start
 // =====================
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
+
   db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
 
-  bot.sendMessage(chatId, `👋 Benvenuto! Usa i bottoni per interagire:`);
+  bot.sendPhoto(chatId, WELCOME_IMAGE, {
+    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni:`,
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "📣 Canale", url: CHANNEL_URL }],
+        [
+          { text: "⚖️ Aste", callback_data: "OPEN_ASTA" },
+          { text: "📄 Listino", callback_data: "OPEN_LISTINO" }
+        ],
+        [
+          { text: "📝 Ordina", callback_data: "OPEN_ORDINI" },
+          { text: "🆘 Assistenza", callback_data: "OPEN_ASSISTENZA" }
+        ],
+        [{ text: "⭐ Lascia una Recensione", callback_data: "OPEN_REVIEW" }],
+        [{ text: "📢 Richiedi uno Sponsor", callback_data: "OPEN_SPONSOR" }],
+        [{ text: "💼 Candidati dipendente", callback_data: "OPEN_CANDIDATURA" }]
+      ]
+    }
+  });
 });
 
 // =====================
-// CALLBACK QUERY (Recensioni semplificate)
+// CALLBACK QUERY
 // =====================
 bot.on("callback_query", (q) => {
   const userId = q.from.id;
   const chatId = q.message.chat.id;
 
+  // ⭐ RECENSIONI
   if (q.data.startsWith("RATE_")) {
     const rating = Number(q.data.split("_")[1]);
     const now = Date.now();
@@ -110,10 +137,8 @@ bot.on("callback_query", (q) => {
       bot.answerCallbackQuery(q.id, { text: "⏳ Attendi un po’", show_alert: true });
       return;
     }
-
     reviewCooldown.set(userId, now);
     reviewState.set(userId, { rating, chatId, waitingComment: true });
-
     bot.answerCallbackQuery(q.id, { text: "⭐ Voto registrato!" });
     bot.sendMessage(chatId, `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`, {
       reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `SKIP_${rating}` }]] }
@@ -128,12 +153,68 @@ bot.on("callback_query", (q) => {
       [userId, rating, null, new Date().toISOString()],
       (err) => {
         if (err) console.error(err);
-        getAverage(avg => bot.sendMessage(chatId, `✅ Recensione inviata! ⭐ ${rating}/5\nMedia attuale: ${avg}`));
+        getAverage(avg => {
+          db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row) => {
+            const total = row ? row.n : 0;
+            bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5\n📊 Media attuale: ${avg} (${total} voti)`);
+            ADMINS.forEach(id => {
+              bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`);
+            });
+            reviewState.delete(userId);
+          });
+        });
       }
     );
-    reviewState.delete(userId);
     bot.answerCallbackQuery(q.id);
     return;
+  }
+
+  // MENU
+  switch (q.data) {
+    case "OPEN_REVIEW":
+      bot.sendMessage(chatId, "⭐ *Lascia una recensione*\nSeleziona un voto da 1 a 5:", {
+        parse_mode: "Markdown",
+        reply_markup: { inline_keyboard: [[1,2,3,4,5].map(n => ({ text:`⭐ ${n}`, callback_data:`RATE_${n}` }))] }
+      });
+      break;
+
+    case "OPEN_LISTINO":
+      bot.sendMessage(chatId, "📄 *Listino CapyBar*\nConsulta il listino completo qui: https://telegra.ph/Listino-CapyBar-02-07", { parse_mode: "Markdown" });
+      break;
+
+    case "OPEN_ASTA":
+      userState.set(userId, "ASTA");
+      bot.sendMessage(chatId, "🏷️ *Modulo Asta*\nScrivi in un unico messaggio:\n1️⃣ Nickname\n2️⃣ Oggetto/i\n3️⃣ Prezzo base\n4️⃣ Rilancio", { parse_mode: "Markdown" });
+      break;
+
+    case "OPEN_ORDINI":
+      userState.set(userId, "ORDINE");
+      bot.sendMessage(chatId, "📝 *Modulo Ordinazioni*\nScrivi in un unico messaggio:\n1️⃣ Nickname\n2️⃣ @ Telegram\n3️⃣ Prodotti desiderati", { parse_mode: "Markdown" });
+      break;
+
+    case "OPEN_ASSISTENZA":
+      userState.set(userId, "ASSISTENZA");
+      bot.sendMessage(chatId, "🆘 *Assistenza*\nScrivi qui la tua richiesta o contatta un admin.", { parse_mode: "Markdown" });
+      break;
+
+    case "OPEN_SPONSOR":
+      userState.set(userId, "SPONSOR");
+      bot.sendMessage(chatId, "📢 *Richiesta Sponsor*\nScrivi tipo, durata e dettagli aggiuntivi", { parse_mode: "Markdown" });
+      break;
+
+    case "OPEN_CANDIDATURA":
+      userState.set(userId, "CANDIDATURA");
+      bot.sendMessage(chatId,
+`📝 *Modulo Candidatura Dipendente*\n\nCompila il tuo curriculum seguendo questi punti:\n\n` +
+`1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome e ore disponibili\n` +
+`2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni\n` +
+`3️⃣ *Perché dovremmo sceglierti?*\n` +
+`4️⃣ *Esperienze lavorative*: se presenti e se attualmente lavori in un’azienda\n` +
+`5️⃣ *Competenze pratiche*: uso della cassa, capacità di cucinare\n` +
+`6️⃣ *Pregi e difetti*\n\n` +
+`📍 *Consegna*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
+{ parse_mode: "Markdown" });
+      break;
   }
 
   bot.answerCallbackQuery(q.id);
@@ -147,6 +228,7 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
+  // COMMENTO RECENSIONE
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
@@ -156,9 +238,93 @@ bot.on("message", (msg) => {
       [userId, rating, msg.text, new Date().toISOString()],
       (err) => {
         if (err) console.error(err);
-        getAverage(avg => bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5\n💬 Commento: ${escape(msg.text)}\nMedia: ${avg}`));
+        getAverage(avg => {
+          db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row) => {
+            const total = row ? row.n : 0;
+            bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}\n📊 Media attuale: ${avg} (${total} voti`);
+            ADMINS.forEach(id => bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" }));
+          });
+        });
       }
     );
     return;
   }
+
+  // MODULI / ASSISTENZA / CANDIDATURA / SPONSOR
+  if (userState.has(userId)) {
+    const type = userState.get(userId);
+    userState.delete(userId);
+
+    bot.sendMessage(chatId, "✅ Messaggio inviato con successo!");
+    ADMINS.forEach(id => {
+      bot.sendMessage(id, `📩 *${type}*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${userId}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
+      adminReplyMap[id] = userId;
+    });
+
+    db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
+    return;
+  }
+
+  // RISPOSTE ADMIN
+  if (ADMINS.has(userId) && adminReplyMap[userId]) {
+    const targetUser = adminReplyMap[userId];
+    bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
+    bot.sendMessage(userId, "✅ Messaggio inviato con successo!");
+    ADMINS.forEach(aid => {
+      if (aid !== userId) bot.sendMessage(aid, `💬 *${msg.from.first_name}* ha risposto a ${targetUser}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
+    });
+    delete adminReplyMap[userId];
+    return;
+  }
+});
+
+// =====================
+// COMANDI ADMIN
+// =====================
+bot.onText(/\/admin add (\d+)/, (msg, match) => {
+  const fromId = msg.from.id;
+  if (fromId !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
+  const newAdmin = Number(match[1]);
+  if (ADMINS.has(newAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin già presente.");
+
+  db.run("INSERT OR IGNORE INTO admins (id) VALUES (?)", [newAdmin]);
+  ADMINS.add(newAdmin);
+  bot.sendMessage(msg.chat.id, `✅ Admin aggiunto: ${newAdmin}`);
+});
+
+bot.onText(/\/admin remove (\d+)/, (msg, match) => {
+  const fromId = msg.from.id;
+  if (fromId !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
+  const remAdmin = Number(match[1]);
+  if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
+
+  db.run("DELETE FROM admins WHERE id = ?", [remAdmin]);
+  ADMINS.delete(remAdmin);
+  bot.sendMessage(msg.chat.id, `✅ Admin rimosso: ${remAdmin}`);
+});
+
+// =====================
+// COMANDO /id
+// =====================
+bot.onText(/\/id/, (msg) => {
+  bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
+});
+
+// =====================
+// COMANDO /stats
+// =====================
+bot.onText(/\/stats/, (msg) => {
+  const chatId = msg.chat.id;
+  db.get("SELECT COUNT(*) as n FROM users", [], (err, row) => {
+    const totalUsers = row ? row.n : 0;
+    db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) => {
+      const totalReviews = row2 ? row2.n : 0;
+      getAverage(avgRating => {
+        bot.sendMessage(chatId,
+          `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
+          { parse_mode:"Markdown" }
+        );
+      });
+    });
+  });
 });
