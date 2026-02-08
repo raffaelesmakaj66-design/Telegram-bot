@@ -98,6 +98,10 @@ bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
+  // ✅ RESET stato utente e recensione
+  userState.delete(userId);
+  reviewState.delete(userId);
+
   db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
 
   bot.sendPhoto(chatId, WELCOME_IMAGE, {
