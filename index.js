@@ -72,7 +72,6 @@ db.all("SELECT id FROM admins", [], (err, rows) => {
 const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
 const userState = new Map(); // userId -> tipo modulo/assistenza
-const adminReplyMap = {};    // adminId -> userId per risposta
 const activeChats = new Map(); // userId <-> adminId (chat continua)
 const sponsorState = new Map(); // userId -> { step: "SHOW_INFO" | "SELECT_DURATION" | "WRITE_TEXT", duration: string }
 const REVIEW_COOLDOWN_MS = 60 * 1000;
@@ -290,11 +289,11 @@ bot.on("callback_query", (q) => {
 // MESSAGGI UTENTE
 // =====================
 bot.on("message", (msg) => {
-  if (!msg.text || msg.text.startsWith("/")) return;
+  if (!msg.text) return; // ✅ evita crash se non è testo
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  
-    // 🔁 CHAT CONTINUA UTENTE → ADMIN
+
+  // 🔁 CHAT CONTINUA UTENTE → ADMIN
   if (activeChats.has(userId) && !ADMINS.has(userId)) {
     const adminId = activeChats.get(userId);
     bot.sendMessage(
@@ -302,10 +301,11 @@ bot.on("message", (msg) => {
       `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
       { parse_mode: "Markdown" }
     );
+    bot.sendMessage(chatId, "✅ Messaggio inviato!");
     return;
   }
-  
-    // 🔁 CHAT CONTINUA ADMIN → UTENTE
+
+  // 🔁 CHAT CONTINUA ADMIN → UTENTE
   if (ADMINS.has(userId) && activeChats.has(userId)) {
     const targetUser = activeChats.get(userId);
     bot.sendMessage(
@@ -313,6 +313,7 @@ bot.on("message", (msg) => {
       `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
       { parse_mode: "Markdown" }
     );
+    bot.sendMessage(chatId, "✅ Messaggio inviato!");
     return;
   }
 
@@ -338,13 +339,12 @@ bot.on("message", (msg) => {
     return;
   }
 
-    // GESTIONE SPONSOR
+  // GESTIONE SPONSOR
   if (sponsorState.has(userId)) {
     const data = sponsorState.get(userId);
     if (data.step === "WRITE_TEXT") {
       sponsorState.delete(userId);
 
-      // Scegliamo un admin disponibile a caso
       const adminArray = Array.from(ADMINS);
       if (adminArray.length === 0) {
         bot.sendMessage(chatId, "❌ Nessun admin disponibile al momento.");
@@ -352,30 +352,25 @@ bot.on("message", (msg) => {
       }
       const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)];
 
-      // Attiva chat continua
       activeChats.set(userId, assignedAdmin);
       activeChats.set(assignedAdmin, userId);
 
-      // Invia messaggio all’admin
       bot.sendMessage(assignedAdmin,
         `📢 *Nuovo Sponsor*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🕒 Durata: ${data.duration}\n\n${msg.text}`,
         { parse_mode: "Markdown" }
       );
 
-      // Conferma all’utente
       bot.sendMessage(chatId, "✅ Sponsor inviato! Ora puoi continuare a scrivere qui e ricevere risposta dall'admin.");
-
       db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
       return;
     }
   }
 
-    // MODULI / ASSISTENZA / CANDIDATURA / SPONSOR
+  // MODULI / ASSISTENZA / CANDIDATURA / SPONSOR
   if (userState.has(userId)) {
     const type = userState.get(userId);
     userState.delete(userId);
 
-    // Scegliamo un admin disponibile a caso
     const adminArray = Array.from(ADMINS);
     if (adminArray.length === 0) {
       bot.sendMessage(chatId, "❌ Nessun admin disponibile al momento.");
@@ -383,27 +378,21 @@ bot.on("message", (msg) => {
     }
     const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)];
 
-    // Attiva chat continua
     activeChats.set(userId, assignedAdmin);
     activeChats.set(assignedAdmin, userId);
 
-    // Invia messaggio all’admin
     bot.sendMessage(assignedAdmin,
       `📩 *${type}*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${userId}\n\n${escape(msg.text)}`,
       { parse_mode:"Markdown" }
     );
 
-    // Conferma all’utente
     bot.sendMessage(chatId, "✅ Messaggio inviato! Ora puoi continuare a scrivere qui e ricevere risposta dall'admin.");
-
     db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
     return;
   }
 
-    db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
-    return;
-  }
-  
+  // Inserimento utente nel DB
+  db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
 });
 
 // =====================
@@ -443,13 +432,22 @@ bot.onText(/\/id/, (msg) => {
 // =====================
 bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
+
+  // Conta utenti
   db.get("SELECT COUNT(*) as n FROM users", [], (err, row) => {
     const totalUsers = row ? row.n : 0;
+
+    // Conta recensioni
     db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) => {
       const totalReviews = row2 ? row2.n : 0;
+
+      // Media voti
       getAverage(avgRating => {
         bot.sendMessage(chatId,
-          `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
+          `📊 *Statistiche Bot*\n\n` +
+          `👥 Utenti totali: ${totalUsers}\n` +
+          `⭐ Recensioni totali: ${totalReviews}\n` +
+          `📊 Voto medio: ${avgRating}`,
           { parse_mode:"Markdown" }
         );
       });
