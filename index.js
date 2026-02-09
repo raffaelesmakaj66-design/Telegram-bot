@@ -261,7 +261,7 @@ bot.on("callback_query", (q) => {
         {
           parse_mode: "Markdown",
           reply_markup: {
-            inline_keyboard: [[{ text: "Continua", callback_data: "SPONSOR_CONTINUA" }]]
+            inline_keyboard: [[{ text: "✅ Continua", callback_data: "SPONSOR_CONTINUA" }]]
           }
         }
       );
