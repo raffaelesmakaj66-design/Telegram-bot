@@ -177,7 +177,7 @@ bot.on("callback_query", (q) => {
     case "OPEN_SPONSOR":
       sponsorState.set(userId, { step: "SHOW_INFO" });
       bot.sendMessage(chatId,
-        "*📢 Prezzi Sponsor:*\n12h » 500\n24h » 1000\n36h » 1600\n48h » 2100\nPermanente » 3200",
+        "*📢 Prezzi Sponsor:*\n12h » 500€\n24h » 1000€\n36h » 1600€\n48h » 2100€\nPermanente » 3200€",
         { parse_mode: "Markdown", reply_markup: { inline_keyboard: [[{ text: "✅ Continua", callback_data: "SPONSOR_CONTINUA" }]] } }
       );
       break;
