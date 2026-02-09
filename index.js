@@ -1,5 +1,5 @@
-import TelegramBot from "node-telegram-bot-api";
-import sqlite3 from "sqlite3";
+const TelegramBot = require("node-telegram-bot-api");
+const sqlite3 = require("sqlite3").verbose();
 sqlite3.verbose();
 
 // =====================
