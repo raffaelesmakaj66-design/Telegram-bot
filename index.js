@@ -317,3 +317,31 @@ bot.onText(/\/id/, (msg) => bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegra
 bot.onText(/\/stats/, (msg) => {
   bot.sendMessage(msg.chat.id, `📊 Statistiche Bot:\n👥 Utenti totali: ${USERS.size}\n⭐ Recensioni totali: ${reviewState.size}\n📊 Voto medio: ${getAverage()}`);
 });
+// =====================
+// COMANDO LISTA ADMIN LEGIBILE
+// =====================
+bot.onText(/\/admin list/, async (msg) => {
+  if (msg.from.id !== SUPER_ADMIN) {
+    return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può vedere la lista degli admin.");
+  }
+
+  if (ADMINS.size === 0) {
+    return bot.sendMessage(msg.chat.id, "⚠️ Nessun admin presente.");
+  }
+
+  let adminInfoList = [];
+
+  for (const id of ADMINS) {
+    try {
+      const chat = await bot.getChat(id); // Recupera info dell'admin
+      const name = chat.first_name || "N/A";
+      const username = chat.username ? `@${chat.username}` : "N/A";
+      adminInfoList.push(`${name} (${username}) - ID: ${id}`);
+    } catch (err) {
+      // Se non è possibile recuperare info, mostra solo l'ID
+      adminInfoList.push(`ID: ${id}`);
+    }
+  }
+
+  bot.sendMessage(msg.chat.id, `👑 Lista Admin:\n\n${adminInfoList.join("\n")}`);
+});
