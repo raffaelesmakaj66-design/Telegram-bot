@@ -257,7 +257,7 @@ bot.on("callback_query", (q) => {
         "**24h** » 1000€\n" +
         "**36h** » 1600€\n" +
         "**48h** » 2100€\n" +
-        "**Permanente** » 3200",
+        "**Permanente** » 3200€",
         {
           parse_mode: "Markdown",
           reply_markup: {
