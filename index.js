@@ -1,4 +1,3 @@
-const TelegramBot = require("node-telegram-bot-api");
 import TelegramBot from "node-telegram-bot-api";
 
 // =====================
