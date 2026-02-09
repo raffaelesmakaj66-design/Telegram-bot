@@ -1,5 +1,5 @@
-const TelegramBot = require("node-telegram-bot-api");
-const sqlite3 = require("sqlite3").verbose();
+import TelegramBot from "node-telegram-bot-api";
+import sqlite3 from "sqlite3";
 sqlite3.verbose();
 
 // =====================
@@ -83,7 +83,7 @@ const getAverage = (callback) => {
 };
 
 // =====================
-// COMANDO /start
+// /start
 // =====================
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
@@ -152,9 +152,7 @@ bot.on("callback_query", (q) => {
           db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row) => {
             const total = row ? row.n : 0;
             bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5\n📊 Media attuale: ${avg} (${total} voti)`);
-            ADMINS.forEach(id => {
-              bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`);
-            });
+            ADMINS.forEach(id => bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`));
             reviewState.delete(userId);
           });
         });
@@ -165,7 +163,7 @@ bot.on("callback_query", (q) => {
   }
 
   // =======================
-  // FLUSSO SPONSOR
+  // SPONSOR
   // =======================
   if (q.data === "SPONSOR_CONTINUA") {
     const state = sponsorState.get(userId);
@@ -211,7 +209,7 @@ bot.on("callback_query", (q) => {
   }
 
   // =======================
-  // MENU VARI
+  // MENU PRINCIPALE
   // =======================
   switch (q.data) {
     case "OPEN_REVIEW":
@@ -289,25 +287,27 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // COMMENTO RECENSIONE
+  // COMMENTI RECENSIONE
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
-
-    db.run("INSERT INTO reviews (user_id, rating, comment, created_at) VALUES (?, ?, ?, ?)", [userId, rating, msg.text, new Date().toISOString()], (err) => {
-      if (err) console.error(err);
-      getAverage(avg => {
-        db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row) => {
-          const total = row ? row.n : 0;
-          bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
-          ADMINS.forEach(id => bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" }));
+    db.run("INSERT INTO reviews (user_id, rating, comment, created_at) VALUES (?, ?, ?, ?)",
+      [userId, rating, msg.text, new Date().toISOString()],
+      (err) => {
+        if (err) console.error(err);
+        getAverage(avg => {
+          db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row) => {
+            const total = row ? row.n : 0;
+            bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
+            ADMINS.forEach(id => bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" }));
+          });
         });
-      });
-    });
+      }
+    );
     return;
   }
 
-  // GESTIONE SPONSOR / MODULI / ASSISTENZA / CANDIDATURA
+  // SPONSOR / MODULI / ASSISTENZA / CANDIDATURA
   if (sponsorState.has(userId)) {
     const data = sponsorState.get(userId);
     if (data.step === "WRITE_TEXT") {
@@ -365,23 +365,26 @@ bot.onText(/\/admin remove (\d+)/, (msg, match) => {
 });
 
 // =====================
-// COMANDI UTENTE
+// /id
 // =====================
 bot.onText(/\/id/, (msg) => {
   bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
 });
 
+// =====================
+// /stats
+// =====================
 bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
   db.get("SELECT COUNT(*) as n FROM users", [], (err, row) => {
     const totalUsers = row ? row.n : 0;
-    db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) =>
-        const totalReviews = row2 ? row2.n : 0;
-    getAverage(avgRating => {
-      bot.sendMessage(chatId,
-        `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
-        { parse_mode:"Markdown" }
-      );
+    db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) => {
+      const totalReviews = row2 ? row2.n : 0;
+      getAverage(avgRating => {
+                  bot.sendMessage(chatId,
+            `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
+            { parse_mode: "Markdown" }
+          );
+      });
     });
-  });
 });
