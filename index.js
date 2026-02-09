@@ -2,7 +2,6 @@
 // IMPORT
 // =====================
 const TelegramBot = require("node-telegram-bot-api");
-const sqlite3 = require("sqlite3").verbose();
 
 // =====================
 // CONFIG
@@ -10,13 +9,8 @@ const sqlite3 = require("sqlite3").verbose();
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const SUPER_ADMIN = Number(process.env.SUPER_ADMIN);
 
-if (!TOKEN) {
-  console.error("❌ TELEGRAM_TOKEN mancante!");
-  process.exit(1);
-}
-
-if (!SUPER_ADMIN) {
-  console.error("❌ SUPER_ADMIN mancante!");
+if (!TOKEN || !SUPER_ADMIN) {
+  console.error("❌ TELEGRAM_TOKEN o SUPER_ADMIN mancante!");
   process.exit(1);
 }
 
@@ -24,49 +18,16 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 console.log("✅ Bot avviato correttamente");
 
 // =====================
-// DATABASE
+// STATI IN MEMORIA
 // =====================
-const db = new sqlite3.Database("./bot.db", (err) => {
-  if (err) console.error("❌ Errore DB:", err.message);
-  else console.log("✅ DB SQLite aperto");
-});
-
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS admins (id INTEGER PRIMARY KEY)`);
-  db.run(`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY)`);
-  db.run(`CREATE TABLE IF NOT EXISTS reviews (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    rating INTEGER,
-    comment TEXT,
-    created_at TEXT
-  )`);
-});
-
-// =====================
-// ADMIN
-// =====================
-const ADMINS = new Set();
-db.all("SELECT id FROM admins", [], (err, rows) => {
-  if (err) console.error(err);
-  else if (rows) rows.forEach(r => ADMINS.add(r.id));
-
-  if (!ADMINS.has(SUPER_ADMIN)) {
-    db.run("INSERT OR IGNORE INTO admins (id) VALUES (?)", [SUPER_ADMIN]);
-    ADMINS.add(SUPER_ADMIN);
-    console.log(`✅ SUPER_ADMIN aggiunto: ${SUPER_ADMIN}`);
-  }
-});
-
-// =====================
-// STATI
-// =====================
-const reviewState = new Map();
-const reviewCooldown = new Map();
-const userState = new Map();
-const activeChats = new Map();
-const sponsorState = new Map();
+const reviewState = new Map();       // userId -> { rating, waitingComment }
+const activeChats = new Map();       // userId <-> adminId
+const userState = new Map();         // userId -> tipo modulo/assistenza/candidatura
+const sponsorState = new Map();      // userId -> { step, duration }
+const ADMINS = new Set([SUPER_ADMIN]);
+const USERS = new Set();
 const REVIEW_COOLDOWN_MS = 60 * 1000;
+const reviewCooldown = new Map();
 
 // =====================
 // COSTANTI
@@ -78,10 +39,11 @@ const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 // FUNZIONI UTILI
 // =====================
 const escape = (t) => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
-const getAverage = (callback) => {
-  db.get("SELECT AVG(rating) as avg FROM reviews", [], (err, row) => {
-    callback(row && row.avg ? row.avg.toFixed(1) : "0.0");
-  });
+
+const getAverage = () => {
+  let sum = 0, count = 0;
+  reviewState.forEach(r => { if (r.rating) { sum += r.rating; count++; } });
+  return count ? (sum/count).toFixed(1) : "0.0";
 };
 
 // =====================
@@ -101,7 +63,7 @@ bot.onText(/\/start/, (msg) => {
     activeChats.delete(adminId);
   }
 
-  db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
+  USERS.add(userId);
 
   bot.sendPhoto(chatId, WELCOME_IMAGE, {
     caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni:`,
@@ -135,7 +97,7 @@ bot.on("callback_query", (q) => {
       return;
     }
     reviewCooldown.set(userId, now);
-    reviewState.set(userId, { rating, chatId, waitingComment: true });
+    reviewState.set(userId, { rating, waitingComment: true });
     bot.answerCallbackQuery(q.id, { text: "⭐ Voto registrato!" });
     bot.sendMessage(chatId, `Hai votato ⭐ ${rating}/5\nVuoi lasciare un commento?`, {
       reply_markup: { inline_keyboard: [[{ text: "⏭️ Skip", callback_data: `SKIP_${rating}` }]] }
@@ -145,35 +107,18 @@ bot.on("callback_query", (q) => {
 
   if (q.data.startsWith("SKIP_")) {
     const rating = Number(q.data.split("_")[1]);
-    db.run(
-      "INSERT INTO reviews (user_id, rating, comment, created_at) VALUES (?, ?, ?, ?)",
-      [userId, rating, null, new Date().toISOString()],
-      (err) => {
-        if (err) console.error(err);
-        getAverage(avg => {
-          db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row) => {
-            const total = row ? row.n : 0;
-            bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5\n📊 Media attuale: ${avg} (${total} voti)`);
-            ADMINS.forEach(id => bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`));
-            reviewState.delete(userId);
-          });
-        });
-      }
-    );
-    bot.answerCallbackQuery(q.id);
+    reviewState.delete(userId);
+    bot.answerCallbackQuery(q.id, { text: "✅ Recensione inviata!" });
+    bot.sendMessage(chatId, `✅ Recensione inviata senza commento ⭐ ${rating}/5`);
     return;
   }
 
-  // =======================
-  // SPONSOR
-  // =======================
+  // 📢 SPONSOR
   if (q.data === "SPONSOR_CONTINUA") {
     const state = sponsorState.get(userId);
     if (!state || state.step !== "SHOW_INFO") return;
-
     state.step = "SELECT_DURATION";
     sponsorState.set(userId, state);
-
     bot.sendMessage(chatId, "Seleziona il tempo di durata della sponsor:", {
       reply_markup: {
         inline_keyboard: [
@@ -192,7 +137,6 @@ bot.on("callback_query", (q) => {
   if (q.data.startsWith("SPONSOR_")) {
     const state = sponsorState.get(userId);
     if (!state || state.step !== "SELECT_DURATION") return;
-
     const durationMap = {
       "SPONSOR_12h": "12h",
       "SPONSOR_24h": "24h",
@@ -200,66 +144,47 @@ bot.on("callback_query", (q) => {
       "SPONSOR_48h": "48h",
       "SPONSOR_PERMANENTE": "Permanente"
     };
-
     state.step = "WRITE_TEXT";
     state.duration = durationMap[q.data];
     sponsorState.set(userId, state);
-
     bot.sendMessage(chatId, "Ora invia il testo del messaggio sponsor:");
     bot.answerCallbackQuery(q.id);
     return;
   }
 
-  // =======================
   // MENU PRINCIPALE
-  // =======================
   switch (q.data) {
     case "OPEN_REVIEW":
-      bot.sendMessage(chatId, "⭐ *Lascia una recensione*\nSeleziona un voto da 1 a 5:", {
-        parse_mode: "Markdown",
+      bot.sendMessage(chatId, "⭐ Seleziona un voto da 1 a 5:", {
         reply_markup: { inline_keyboard: [[1,2,3,4,5].map(n => ({ text:`⭐ ${n}`, callback_data:`RATE_${n}` }))] }
       });
       break;
     case "OPEN_LISTINO":
-      bot.sendMessage(chatId, "📄 *Listino CapyBar*\nConsulta il listino completo qui: https://telegra.ph/Listino-CapyBar-02-07", { parse_mode: "Markdown" });
+      bot.sendMessage(chatId, "📄 Consulta il listino completo qui: https://telegra.ph/Listino-CapyBar-02-07");
       break;
     case "OPEN_ASTA":
       userState.set(userId, "ASTA");
-      bot.sendMessage(chatId, "🏷️ *Modulo Asta*\nScrivi in un unico messaggio:\n1️⃣ Nickname\n2️⃣ Oggetto/i\n3️⃣ Prezzo base\n4️⃣ Rilancio", { parse_mode: "Markdown" });
+      bot.sendMessage(chatId, "🏷️ Modulo Asta: scrivi nickname, oggetto, prezzo base e rilancio.");
       break;
     case "OPEN_ORDINI":
       userState.set(userId, "ORDINE");
-      bot.sendMessage(chatId, "📝 *Modulo Ordinazioni*\nScrivi in un unico messaggio:\n1️⃣ Nickname\n2️⃣ @ Telegram\n3️⃣ Prodotti desiderati", { parse_mode: "Markdown" });
+      bot.sendMessage(chatId, "📝 Modulo Ordini: scrivi nickname, @ Telegram e prodotti desiderati.");
       break;
     case "OPEN_ASSISTENZA":
       userState.set(userId, "ASSISTENZA");
-      bot.sendMessage(chatId, "🆘 *Assistenza*\nScrivi qui la tua richiesta o contatta un admin.", { parse_mode: "Markdown" });
+      bot.sendMessage(chatId, "🆘 Scrivi qui la tua richiesta, un admin ti risponderà.");
       break;
     case "OPEN_SPONSOR":
       sponsorState.set(userId, { step: "SHOW_INFO" });
       bot.sendMessage(chatId,
-        "*📢 Prezzi Sponsor:*\n\n" +
-        "**12h** » 500\n" +
-        "**24h** » 1000\n" +
-        "**36h** » 1600\n" +
-        "**48h** » 2100\n" +
-        "**Permanente** » 3200",
-        { parse_mode: "Markdown",
-          reply_markup: { inline_keyboard: [[{ text: "✅ Continua", callback_data: "SPONSOR_CONTINUA" }]] } }
+        "*📢 Prezzi Sponsor:*\n12h » 500\n24h » 1000\n36h » 1600\n48h » 2100\nPermanente » 3200",
+        { parse_mode: "Markdown", reply_markup: { inline_keyboard: [[{ text: "✅ Continua", callback_data: "SPONSOR_CONTINUA" }]] } }
       );
       break;
     case "OPEN_CANDIDATURA":
       userState.set(userId, "CANDIDATURA");
       bot.sendMessage(chatId,
-`📝 *Modulo Candidatura Dipendente*\n\nCompila il tuo curriculum su un libro seguendo questi punti:\n\n` +
-`1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome, ore settimanali e totali\n` +
-`2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni\n` +
-`3️⃣ *Perché dovremmo sceglierti?*\n` +
-`4️⃣ *Esperienze lavorative*: se presenti e se attualmente lavori in un’azienda\n` +
-`5️⃣ *Competenze pratiche*: uso della cassa, capacità di cucinare\n` +
-`6️⃣ *Pregi e difetti*\n\n` +
-`📍 *Consegna*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
-{ parse_mode: "Markdown" });
+`📝 Modulo Candidatura Dipendente\n\n1️⃣ Dati personali\n2️⃣ Parlaci di te\n3️⃣ Perché dovremmo sceglierti?\n4️⃣ Esperienze lavorative\n5️⃣ Competenze pratiche\n6️⃣ Pregi e difetti`);
       break;
   }
   bot.answerCallbackQuery(q.id);
@@ -272,122 +197,75 @@ bot.on("message", (msg) => {
   if (!msg.text || msg.text.startsWith("/")) return;
   const chatId = msg.chat.id;
   const userId = msg.from.id;
+  USERS.add(userId);
 
-  // CHAT UTENTE → ADMIN
+  // CHAT UTENTE -> ADMIN
   if (activeChats.has(userId) && !ADMINS.has(userId)) {
     const adminId = activeChats.get(userId);
-    bot.sendMessage(adminId, `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode: "Markdown" });
+    bot.sendMessage(adminId, `💬 Messaggio da ${msg.from.first_name}:\n\n${escape(msg.text)}`);
     bot.sendMessage(chatId, "✅ Messaggio inviato!");
     return;
   }
 
-  // CHAT ADMIN → UTENTE
+  // CHAT ADMIN -> UTENTE
   if (ADMINS.has(userId) && activeChats.has(userId)) {
     const targetUser = activeChats.get(userId);
-    bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode: "Markdown" });
+    bot.sendMessage(targetUser, `💬 Risposta da ${msg.from.first_name}:\n\n${escape(msg.text)}`);
     bot.sendMessage(chatId, "✅ Messaggio inviato!");
     return;
   }
 
-  // COMMENTI RECENSIONE
+  // COMMENTO RECENSIONE
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
-    db.run("INSERT INTO reviews (user_id, rating, comment, created_at) VALUES (?, ?, ?, ?)",
-      [userId, rating, msg.text, new Date().toISOString()],
-      (err) => {
-        if (err) console.error(err);
-        getAverage(avg => {
-          db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row) => {
-            const total = row ? row.n : 0;
-            bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}\n📊 Media attuale: ${avg} (${total} voti)`);
-            ADMINS.forEach(id => bot.sendMessage(id, `⭐ Recensione\n👤 ${msg.from.first_name}\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`, { parse_mode:"Markdown" }));
-          });
-        });
-      }
-    );
+    bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}`);
     return;
   }
 
-  // SPONSOR / MODULI / ASSISTENZA / CANDIDATURA
-  if (sponsorState.has(userId)) {
-    const data = sponsorState.get(userId);
-    if (data.step === "WRITE_TEXT") {
-      sponsorState.delete(userId);
-      const adminArray = Array.from(ADMINS);
-      if (adminArray.length === 0) { bot.sendMessage(chatId, "❌ Nessun admin disponibile al momento."); return; }
-      const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)];
-      activeChats.set(userId, assignedAdmin);
-      activeChats.set(assignedAdmin, userId);
-      bot.sendMessage(assignedAdmin, `📢 *Nuovo Sponsor*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🕒 Durata: ${data.duration}\n\n${msg.text}`, { parse_mode: "Markdown" });
-      bot.sendMessage(chatId, "✅ Sponsor inviato! Ora puoi continuare a scrivere qui e ricevere risposta dall'admin.");
-      db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
-      return;
-    }
-  }
-
-  if (userState.has(userId)) {
-    const type = userState.get(userId);
+  // MODULI / SPONSOR / ASSISTENZA / CANDIDATURA
+  if (userState.has(userId) || sponsorState.has(userId)) {
+    let type = userState.get(userId) || "SPONSOR";
     userState.delete(userId);
+    sponsorState.delete(userId);
+
     const adminArray = Array.from(ADMINS);
-    if (adminArray.length === 0) { bot.sendMessage(chatId, "❌ Nessun admin disponibile al momento."); return; }
+    if (!adminArray.length) { bot.sendMessage(chatId, "❌ Nessun admin disponibile"); return; }
     const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)];
+
     activeChats.set(userId, assignedAdmin);
     activeChats.set(assignedAdmin, userId);
-    bot.sendMessage(assignedAdmin, `📩 *${type}*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${userId}\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
+
+    bot.sendMessage(assignedAdmin, `📩 ${type} da ${msg.from.first_name}:\n\n${escape(msg.text)}`);
     bot.sendMessage(chatId, "✅ Messaggio inviato! Ora puoi continuare a scrivere qui e ricevere risposta dall'admin.");
-    db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
     return;
   }
-
-  db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
 });
 
 // =====================
-// COMANDI ADMIN
+// COMANDI ADMIN DINAMICI
 // =====================
 bot.onText(/\/admin add (\d+)/, (msg, match) => {
-  const fromId = msg.from.id;
-  if (fromId !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
+  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può aggiungere admin.");
   const newAdmin = Number(match[1]);
   if (ADMINS.has(newAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin già presente.");
-  db.run("INSERT OR IGNORE INTO admins (id) VALUES (?)", [newAdmin]);
   ADMINS.add(newAdmin);
   bot.sendMessage(msg.chat.id, `✅ Admin aggiunto: ${newAdmin}`);
 });
 
 bot.onText(/\/admin remove (\d+)/, (msg, match) => {
-  const fromId = msg.from.id;
-  if (fromId !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
+  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può rimuovere admin.");
   const remAdmin = Number(match[1]);
   if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
-  db.run("DELETE FROM admins WHERE id = ?", [remAdmin]);
   ADMINS.delete(remAdmin);
   bot.sendMessage(msg.chat.id, `✅ Admin rimosso: ${remAdmin}`);
 });
 
 // =====================
-// /id
+// COMANDI BASE
 // =====================
-bot.onText(/\/id/, (msg) => {
-  bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`);
-});
+bot.onText(/\/id/, (msg) => bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`));
 
-// =====================
-// /stats
-// =====================
 bot.onText(/\/stats/, (msg) => {
-  const chatId = msg.chat.id;
-  db.get("SELECT COUNT(*) as n FROM users", [], (err, row) => {
-    const totalUsers = row ? row.n : 0;
-    db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) => {
-      const totalReviews = row2 ? row2.n : 0;
-      getAverage(avgRating => {
-        bot.sendMessage(chatId,
-          `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
-          { parse_mode: "Markdown" }
-        );
-      });
-    });
-  });
+  bot.sendMessage(msg.chat.id, `📊 Statistiche Bot:\n👥 Utenti totali: ${USERS.size}\n⭐ Recensioni totali: ${reviewState.size}\n📊 Voto medio: ${getAverage()}`);
 });
