@@ -83,14 +83,16 @@ bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
+  // RESET stati utente
   userState.delete(userId);
   reviewState.delete(userId);
   sponsorState.delete(userId);
 
+  // TERMINA chat continua
   if (activeChats.has(userId)) {
     const adminId = activeChats.get(userId);
     activeChats.delete(userId);
-    activeChats.delete(adminId);
+    if (adminId) activeChats.delete(adminId);
   }
 
   db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
@@ -137,23 +139,17 @@ bot.on("callback_query", (q) => {
 
   if (q.data.startsWith("SKIP_")) {
     const rating = Number(q.data.split("_")[1]);
-    db.run(
-      "INSERT INTO reviews (user_id, rating, comment, created_at) VALUES (?, ?, ?, ?)",
-      [userId, rating, null, new Date().toISOString()],
-      (err) => {
-        if (err) console.error(err);
-        getAverage(avg => {
-          db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row) => {
-            const total = row ? row.n : 0;
-            bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5\n📊 Media attuale: ${avg} (${total} voti)`);
-            ADMINS.forEach(id => {
-              bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`);
-            });
-            reviewState.delete(userId);
-          });
+    db.run("INSERT INTO reviews (user_id, rating, comment, created_at) VALUES (?, ?, ?, ?)", [userId, rating, null, new Date().toISOString()], (err) => {
+      if (err) console.error(err);
+      getAverage(avg => {
+        db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row) => {
+          const total = row ? row.n : 0;
+          bot.sendMessage(chatId, `✅ Recensione inviata!\n⭐ ${rating}/5\n📊 Media attuale: ${avg} (${total} voti)`);
+          ADMINS.forEach(id => bot.sendMessage(id, `⭐ Nuova recensione\n👤 ${q.from.first_name}\n⭐ ${rating}/5\n💬 Nessun commento`));
+          reviewState.delete(userId);
         });
-      }
-    );
+      });
+    });
     bot.answerCallbackQuery(q.id);
     return;
   }
@@ -162,10 +158,8 @@ bot.on("callback_query", (q) => {
   if (q.data === "SPONSOR_CONTINUA") {
     const state = sponsorState.get(userId);
     if (!state || state.step !== "SHOW_INFO") return;
-
     state.step = "SELECT_DURATION";
     sponsorState.set(userId, state);
-
     bot.sendMessage(chatId, "Seleziona il tempo di durata della sponsor:", {
       reply_markup: {
         inline_keyboard: [
@@ -184,7 +178,6 @@ bot.on("callback_query", (q) => {
   if (q.data.startsWith("SPONSOR_")) {
     const state = sponsorState.get(userId);
     if (!state || state.step !== "SELECT_DURATION") return;
-
     const durationMap = {
       "SPONSOR_12h": "12h",
       "SPONSOR_24h": "24h",
@@ -192,11 +185,9 @@ bot.on("callback_query", (q) => {
       "SPONSOR_48h": "48h",
       "SPONSOR_PERMANENTE": "Permanente"
     };
-
     state.step = "WRITE_TEXT";
     state.duration = durationMap[q.data];
     sponsorState.set(userId, state);
-
     bot.sendMessage(chatId, "Ora invia il testo del messaggio sponsor:");
     bot.answerCallbackQuery(q.id);
     return;
@@ -263,19 +254,23 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
-  // CHAT UTENTE → ADMIN
+  // UTENTE → ADMIN
   if (activeChats.has(userId) && !ADMINS.has(userId)) {
     const adminId = activeChats.get(userId);
-    bot.sendMessage(adminId, `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode: "Markdown" });
-    bot.sendMessage(chatId, "✅ Messaggio inviato!");
+    if (adminId) {
+      bot.sendMessage(adminId, `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode: "Markdown" });
+      bot.sendMessage(chatId, "✅ Messaggio inviato!");
+    }
     return;
   }
 
-  // CHAT ADMIN → UTENTE
+  // ADMIN → UTENTE
   if (ADMINS.has(userId) && activeChats.has(userId)) {
     const targetUser = activeChats.get(userId);
-    bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode: "Markdown" });
-    bot.sendMessage(chatId, "✅ Messaggio inviato!");
+    if (targetUser) {
+      bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode: "Markdown" });
+      bot.sendMessage(chatId, "✅ Messaggio inviato!");
+    }
     return;
   }
 
@@ -283,7 +278,6 @@ bot.on("message", (msg) => {
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
-
     db.run("INSERT INTO reviews (user_id, rating, comment, created_at) VALUES (?, ?, ?, ?)", [userId, rating, msg.text, new Date().toISOString()], (err) => {
       if (err) console.error(err);
       getAverage(avg => {
@@ -297,7 +291,7 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // GESTIONE SPONSOR / MODULI / ASSISTENZA / CANDIDATURA
+  // SPONSOR / MODULI / ASSISTENZA / CANDIDATURA
   if (sponsorState.has(userId)) {
     const data = sponsorState.get(userId);
     if (data.step === "WRITE_TEXT") {
@@ -368,14 +362,14 @@ bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
   db.get("SELECT COUNT(*) as n FROM users", [], (err, row) => {
     const totalUsers = row ? row.n : 0;
-    db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) => {
+        db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) => {
       const totalReviews = row2 ? row2.n : 0;
       getAverage(avgRating => {
-                bot.sendMessage(chatId,
+        bot.sendMessage(chatId,
           `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
           { parse_mode:"Markdown" }
         );
       });
     });
+  });
 });
-         
