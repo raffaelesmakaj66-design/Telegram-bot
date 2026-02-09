@@ -383,10 +383,11 @@ bot.onText(/\/stats/, (msg) => {
     db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) => {
       const totalReviews = row2 ? row2.n : 0;
       getAverage(avgRating => {
-        bot          bot.sendMessage(chatId,
-            `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
-            { parse_mode: "Markdown" }
-          );
+        bot.sendMessage(chatId,
+          `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
+          { parse_mode: "Markdown" }
+        );
       });
     });
+  });
 });
