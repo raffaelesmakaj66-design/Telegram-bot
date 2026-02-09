@@ -73,6 +73,7 @@ const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
 const userState = new Map(); // userId -> tipo modulo/assistenza
 const adminReplyMap = {};    // adminId -> userId per risposta
+const sponsorState = new Map(); // userId -> { step: "SHOW_INFO" | "SELECT_DURATION" | "WRITE_TEXT", duration: string }
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
 // =====================
@@ -98,9 +99,10 @@ bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
-  // ✅ RESET stato utente e recensione
+  // ✅ RESET stato utente, sponsor e recensione
   userState.delete(userId);
   reviewState.delete(userId);
+  sponsorState.delete(userId);
 
   db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
 
@@ -173,6 +175,52 @@ bot.on("callback_query", (q) => {
     return;
   }
 
+  // =======================
+  // FLUSSO SPONSOR
+  // =======================
+  if (q.data === "SPONSOR_CONTINUA") {
+    const state = sponsorState.get(userId);
+    if (!state || state.step !== "SHOW_INFO") return;
+
+    state.step = "SELECT_DURATION";
+    sponsorState.set(userId, state);
+
+    bot.sendMessage(chatId, "Seleziona il tempo di durata della sponsor:", {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "12h", callback_data: "SPONSOR_12h" }],
+          [{ text: "24h", callback_data: "SPONSOR_24h" }],
+          [{ text: "36h", callback_data: "SPONSOR_36h" }],
+          [{ text: "48h", callback_data: "SPONSOR_48h" }],
+          [{ text: "Permanente", callback_data: "SPONSOR_PERMANENTE" }]
+        ]
+      }
+    });
+    bot.answerCallbackQuery(q.id);
+    return;
+  }
+
+  if (q.data.startsWith("SPONSOR_")) {
+    const state = sponsorState.get(userId);
+    if (!state || state.step !== "SELECT_DURATION") return;
+
+    const durationMap = {
+      "SPONSOR_12h": "12h",
+      "SPONSOR_24h": "24h",
+      "SPONSOR_36h": "36h",
+      "SPONSOR_48h": "48h",
+      "SPONSOR_PERMANENTE": "Permanente"
+    };
+
+    state.step = "WRITE_TEXT";
+    state.duration = durationMap[q.data];
+    sponsorState.set(userId, state);
+
+    bot.sendMessage(chatId, "Ora invia il testo del messaggio sponsor:");
+    bot.answerCallbackQuery(q.id);
+    return;
+  }
+
   // MENU
   switch (q.data) {
     case "OPEN_REVIEW":
@@ -202,8 +250,21 @@ bot.on("callback_query", (q) => {
       break;
 
     case "OPEN_SPONSOR":
-      userState.set(userId, "SPONSOR");
-      bot.sendMessage(chatId, "📢 *Richiesta Sponsor*\nScrivi quanto vuoi farlo durare e manda il messaggio sponsor, 500 per 12h", { parse_mode: "Markdown" });
+      sponsorState.set(userId, { step: "SHOW_INFO" });
+      bot.sendMessage(chatId,
+        "*📢 Prezzi Sponsor:*\n\n" +
+        "**12h** » 500\n" +
+        "**24h** » 1000\n" +
+        "**36h** » 1600\n" +
+        "**48h** » 2100\n" +
+        "**Permanente** » 3200",
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [[{ text: "Continua", callback_data: "SPONSOR_CONTINUA" }]]
+          }
+        }
+      );
       break;
 
     case "OPEN_CANDIDATURA":
@@ -252,6 +313,24 @@ bot.on("message", (msg) => {
       }
     );
     return;
+  }
+
+  // GESTIONE SPONSOR
+  if (sponsorState.has(userId)) {
+    const data = sponsorState.get(userId);
+    if (data.step === "WRITE_TEXT") {
+      sponsorState.delete(userId);
+
+      ADMINS.forEach(id => {
+        bot.sendMessage(id,
+          `📢 *Nuovo Sponsor*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🕒 Durata: ${data.duration}\n\n${msg.text}`,
+          { parse_mode: "Markdown" }
+        );
+      });
+
+      bot.sendMessage(chatId, "✅ Sponsor inviato con successo!");
+      return;
+    }
   }
 
   // MODULI / ASSISTENZA / CANDIDATURA / SPONSOR
