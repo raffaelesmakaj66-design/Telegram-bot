@@ -253,10 +253,10 @@ bot.on("callback_query", (q) => {
       sponsorState.set(userId, { step: "SHOW_INFO" });
       bot.sendMessage(chatId,
         "*📢 Prezzi Sponsor:*\n\n" +
-        "**12h** » 500\n" +
-        "**24h** » 1000\n" +
-        "**36h** » 1600\n" +
-        "**48h** » 2100\n" +
+        "**12h** » 500€\n" +
+        "**24h** » 1000€\n" +
+        "**36h** » 1600€\n" +
+        "**48h** » 2100€\n" +
         "**Permanente** » 3200",
         {
           parse_mode: "Markdown",
