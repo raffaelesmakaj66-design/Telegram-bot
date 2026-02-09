@@ -1,6 +1,8 @@
-import TelegramBot from "node-telegram-bot-api";
-import sqlite3 from "sqlite3";
-sqlite3.verbose();
+// =====================
+// IMPORT
+// =====================
+const TelegramBot = require("node-telegram-bot-api");
+const sqlite3 = require("sqlite3").verbose();
 
 // =====================
 // CONFIG
@@ -381,7 +383,7 @@ bot.onText(/\/stats/, (msg) => {
     db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) => {
       const totalReviews = row2 ? row2.n : 0;
       getAverage(avgRating => {
-                  bot.sendMessage(chatId,
+        bot          bot.sendMessage(chatId,
             `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
             { parse_mode: "Markdown" }
           );
