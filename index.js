@@ -9,7 +9,7 @@ const TOKEN = process.env.TELEGRAM_TOKEN;
 const SUPER_ADMIN = Number(process.env.SUPER_ADMIN);
 
 if (!TOKEN || !SUPER_ADMIN) {
-  console.error("❌ ENV mancanti");
+  console.error("❌ TOKEN o SUPER_ADMIN mancante");
   process.exit(1);
 }
 
@@ -42,7 +42,7 @@ const ADMINS = new Set();
 db.all("SELECT id FROM admins", [], (_, rows) => {
   rows?.forEach(r => ADMINS.add(r.id));
   if (!ADMINS.has(SUPER_ADMIN)) {
-    db.run("INSERT OR IGNORE INTO admins (id) VALUES (?)", [SUPER_ADMIN]);
+    db.run("INSERT INTO admins (id) VALUES (?)", [SUPER_ADMIN]);
     ADMINS.add(SUPER_ADMIN);
   }
 });
@@ -50,12 +50,12 @@ db.all("SELECT id FROM admins", [], (_, rows) => {
 // =====================
 // STATI
 // =====================
+const userState = new Map();        // ASTA / ORDINE / ASSISTENZA / CANDIDATURA
 const reviewState = new Map();
 const reviewCooldown = new Map();
-const userState = new Map();
-const sponsorState = new Map();
-const activeChats = new Map();
-const REVIEW_COOLDOWN_MS = 60 * 1000;
+const sponsorState = new Map();     // sponsor step
+const activeChats = new Map();      // chat continua
+const REVIEW_COOLDOWN_MS = 60000;
 
 // =====================
 // COSTANTI
@@ -63,32 +63,23 @@ const REVIEW_COOLDOWN_MS = 60 * 1000;
 const WELCOME_IMAGE = "AgACAgQAAxkBAAICCWmHXxtN2F4GIr9-kOdK-ykXConxAALNDGsbx_A4UN36kLWZSKBFAQADAgADeQADOgQ";
 const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 
-// =====================
-// UTILS
-// =====================
 const escape = t => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
-const getAverage = cb => {
-  db.get("SELECT AVG(rating) avg FROM reviews", [], (_, r) =>
-    cb(r?.avg ? r.avg.toFixed(1) : "0.0")
-  );
-};
 
 // =====================
 // /start
 // =====================
-bot.onText(/\/start/, msg => {
-  const userId = msg.from.id;
-  const chatId = msg.chat.id;
+bot.onText(/\/start/, (msg) => {
+  const id = msg.from.id;
 
-  userState.delete(userId);
-  reviewState.delete(userId);
-  sponsorState.delete(userId);
-  activeChats.delete(userId);
+  userState.delete(id);
+  reviewState.delete(id);
+  sponsorState.delete(id);
+  activeChats.delete(id);
 
-  db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
+  db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [id]);
 
-  bot.sendPhoto(chatId, WELCOME_IMAGE, {
-    caption: "👋 *Benvenuto nel bot ufficiale di CapyBar!*",
+  bot.sendPhoto(msg.chat.id, WELCOME_IMAGE, {
+    caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni:`,
     parse_mode: "Markdown",
     reply_markup: {
       inline_keyboard: [
@@ -104,116 +95,134 @@ bot.onText(/\/start/, msg => {
 });
 
 // =====================
-// CALLBACK
+// CALLBACK QUERY
 // =====================
-bot.on("callback_query", q => {
-  const userId = q.from.id;
+bot.on("callback_query", (q) => {
+  const uid = q.from.id;
   const chatId = q.message.chat.id;
 
-  // SPONSOR FLOW
+  // ===== SPONSOR =====
   if (q.data === "OPEN_SPONSOR") {
-    sponsorState.set(userId, { step: "INFO" });
+    sponsorState.set(uid, { step: "INFO" });
     bot.sendMessage(chatId,
-      "*📢 Prezzi Sponsor:*\n\n**12h** » 500\n**24h** » 1000\n**36h** » 1600\n**48h** » 2100\n**Permanente** » 3200",
+      "*📢 Prezzi Sponsor*\n\n" +
+      "**12h** » 500\n" +
+      "**24h** » 1000\n" +
+      "**36h** » 1600\n" +
+      "**48h** » 2100\n" +
+      "**Permanente** » 3200",
       {
         parse_mode: "Markdown",
-        reply_markup: { inline_keyboard: [[{ text: "✅ Continua", callback_data: "SPONSOR_CONTINUA" }]] }
+        reply_markup: { inline_keyboard: [[{ text: "✅ Continua", callback_data: "SP_CONT" }]] }
       }
     );
+    return bot.answerCallbackQuery(q.id);
   }
 
-  if (q.data === "SPONSOR_CONTINUA") {
-    sponsorState.set(userId, { step: "DURATA" });
+  if (q.data === "SP_CONT") {
+    sponsorState.set(uid, { step: "DURATA" });
     bot.sendMessage(chatId, "Seleziona il tempo di durata della sponsor:", {
       reply_markup: {
         inline_keyboard: [
-          ["12h","24h","36h","48h","Permanente"].map(x => ({ text: x, callback_data: `SP_${x}` }))
+          [{ text: "12h", callback_data: "SP_12h" }],
+          [{ text: "24h", callback_data: "SP_24h" }],
+          [{ text: "36h", callback_data: "SP_36h" }],
+          [{ text: "48h", callback_data: "SP_48h" }],
+          [{ text: "Permanente", callback_data: "SP_PERM" }]
         ]
       }
     });
+    return bot.answerCallbackQuery(q.id);
   }
 
   if (q.data.startsWith("SP_")) {
-    sponsorState.set(userId, { step: "TESTO", durata: q.data.replace("SP_","") });
+    const map = {
+      SP_12h: "12h",
+      SP_24h: "24h",
+      SP_36h: "36h",
+      SP_48h: "48h",
+      SP_PERM: "Permanente"
+    };
+    sponsorState.set(uid, { step: "TESTO", durata: map[q.data] });
     bot.sendMessage(chatId, "Ora invia il testo del messaggio sponsor:");
+    return bot.answerCallbackQuery(q.id);
   }
 
-  // MENU
-  if (q.data === "OPEN_ASTA") userState.set(userId, "ASTA"), bot.sendMessage(chatId,"🏷️ *Modulo Asta*",{parse_mode:"Markdown"});
-  if (q.data === "OPEN_ORDINI") userState.set(userId, "ORDINE"), bot.sendMessage(chatId,"📝 *Modulo Ordini*",{parse_mode:"Markdown"});
-  if (q.data === "OPEN_ASSISTENZA") userState.set(userId, "ASSISTENZA"), bot.sendMessage(chatId,"🆘 *Assistenza*",{parse_mode:"Markdown"});
-  if (q.data === "OPEN_CANDIDATURA") userState.set(userId, "CANDIDATURA"), bot.sendMessage(chatId,"💼 *Candidatura*",{parse_mode:"Markdown"});
+  // ===== MENU =====
+  const menus = {
+    OPEN_ASTA: ["ASTA", "🏷️ *Modulo Asta*\nScrivi:\n1️⃣ Nickname\n2️⃣ Oggetto/i\n3️⃣ Prezzo base\n4️⃣ Rilancio"],
+    OPEN_ORDINI: ["ORDINE", "📝 *Modulo Ordini*\n1️⃣ Nickname\n2️⃣ @ Telegram\n3️⃣ Prodotti"],
+    OPEN_ASSISTENZA: ["ASSISTENZA", "🆘 *Assistenza*\nScrivi la tua richiesta"],
+    OPEN_CANDIDATURA: ["CANDIDATURA",
+`📝 *Modulo Candidatura Dipendente*
+
+1️⃣ Dati personali: @ Telegram, telefono, nome, ore settimanali e totali (/tempo)
+2️⃣ Parlaci di te: chi sei, passioni, motivazioni
+3️⃣ Perché dovremmo sceglierti 
+4️⃣ Esperienze lavorative: se presenti e se attualmente lavori in un'azienda
+5️⃣ Competenze pratiche: uso della cassa, capacità di cucinare
+6️⃣ Pregi e difetti
+
+📍 Bancarella 8, -505 64 22`]
+  };
+
+  if (menus[q.data]) {
+    userState.set(uid, menus[q.data][0]);
+    bot.sendMessage(chatId, menus[q.data][1], { parse_mode: "Markdown" });
+  }
+
+  if (q.data === "OPEN_LISTINO") {
+    bot.sendMessage(chatId, "📄 *Listino CapyBar*\nhttps://telegra.ph/Listino-CapyBar-02-07", { parse_mode: "Markdown" });
+  }
 
   bot.answerCallbackQuery(q.id);
 });
 
 // =====================
-// MESSAGE
+// MESSAGGI
 // =====================
-bot.on("message", msg => {
+bot.on("message", (msg) => {
   if (!msg.text || msg.text.startsWith("/")) return;
+  const uid = msg.from.id;
 
-  const userId = msg.from.id;
-  const chatId = msg.chat.id;
-
-  // CHAT CONTINUA UTENTE → ADMIN
-  if (activeChats.has(userId) && !ADMINS.has(userId)) {
-    bot.sendMessage(activeChats.get(userId),
-      `💬 *Messaggio da ${msg.from.first_name}*\n\n${escape(msg.text)}`,
-      { parse_mode:"Markdown" }
-    );
+  // CHAT CONTINUA
+  if (activeChats.has(uid)) {
+    bot.sendMessage(activeChats.get(uid), `💬 ${escape(msg.text)}`, { parse_mode: "Markdown" });
     return;
   }
 
   // SPONSOR TESTO
-  if (sponsorState.get(userId)?.step === "TESTO") {
-    const d = sponsorState.get(userId).durata;
-    sponsorState.delete(userId);
-    ADMINS.forEach(a =>
+  if (sponsorState.get(uid)?.step === "TESTO") {
+    const data = sponsorState.get(uid);
+    sponsorState.delete(uid);
+
+    ADMINS.forEach(a => {
       bot.sendMessage(a,
-        `📢 *Nuovo Sponsor*\n👤 ${msg.from.first_name}\n🕒 ${d}\n\n${escape(msg.text)}`,
-        { parse_mode:"Markdown" }
-      )
-    );
-    bot.sendMessage(chatId,"✅ Sponsor inviato!");
+        `📢 *Nuovo Sponsor*\n👤 ${msg.from.first_name}\n🕒 ${data.durata}\n\n${msg.text}`,
+        { parse_mode: "Markdown" }
+      );
+      activeChats.set(uid, a);
+      activeChats.set(a, uid);
+    });
+
+    bot.sendMessage(msg.chat.id, "✅ Sponsor inviato!");
     return;
   }
 
   // MODULI
-  if (userState.has(userId)) {
-    const type = userState.get(userId);
-    userState.delete(userId);
+  if (userState.has(uid)) {
+    const type = userState.get(uid);
+    userState.delete(uid);
 
     ADMINS.forEach(a => {
-      activeChats.set(userId,a);
-      activeChats.set(a,userId);
       bot.sendMessage(a,
-        `📩 *${type}*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escape(msg.text)}`,
-        { parse_mode:"Markdown" }
+        `📩 *${type}*\n👤 ${msg.from.first_name}\n🆔 ${uid}\n\n${escape(msg.text)}`,
+        { parse_mode: "Markdown" }
       );
+      activeChats.set(uid, a);
+      activeChats.set(a, uid);
     });
 
-    bot.sendMessage(chatId,"✅ Messaggio inviato!");
-    return;
-  }
-
-  // CHAT CONTINUA ADMIN → UTENTE
-  if (ADMINS.has(userId) && activeChats.has(userId)) {
-    bot.sendMessage(activeChats.get(userId),
-      `💬 *Risposta admin:*\n\n${escape(msg.text)}`,
-      { parse_mode:"Markdown" }
-    );
+    bot.sendMessage(msg.chat.id, "✅ Messaggio inviato!");
   }
 });
-
-// =====================
-// ADMIN COMMANDS
-// =====================
-bot.onText(/\/admin add (\d+)/, (m,[,id])=>{
-  if(m.from.id!==SUPER_ADMIN)return;
-  db.run("INSERT OR IGNORE INTO admins VALUES (?)",[id]);
-  ADMINS.add(Number(id));
-  bot.sendMessage(m.chat.id,"✅ Admin aggiunto");
-});
-
-bot.onText(/\/id/, m=>bot.sendMessage(m.chat.id,`🆔 ${m.from.id}`));
