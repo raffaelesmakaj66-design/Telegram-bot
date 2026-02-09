@@ -1,15 +1,9 @@
 {
   "name": "capybar-bot",
   "version": "1.0.0",
-  "main": "index.js",
-  "engines": {
-    "node": "20.x"
-  },
+  "type": "module",
   "dependencies": {
     "node-telegram-bot-api": "^0.61.0",
     "sqlite3": "^5.1.6"
-  },
-  "scripts": {
-    "start": "node index.js"
   }
 }
