@@ -73,6 +73,8 @@ const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
 const userState = new Map(); // userId -> tipo modulo/assistenza
 const adminReplyMap = {};    // adminId -> userId per risposta
+const activeChats = new Map(); 
+// userId <-> adminId (chat continua)
 const sponsorState = new Map(); // userId -> { step: "SHOW_INFO" | "SELECT_DURATION" | "WRITE_TEXT", duration: string }
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
@@ -290,6 +292,16 @@ bot.on("callback_query", (q) => {
 // =====================
 bot.on("message", (msg) => {
   if (!msg.text || msg.text.startsWith("/")) return;
+  // 🔁 CHAT CONTINUA UTENTE → ADMIN
+if (activeChats.has(userId) && !ADMINS.has(userId)) {
+  const adminId = activeChats.get(userId);
+  bot.sendMessage(
+    adminId,
+    `💬 *Messaggio da ${msg.from.first_name}*\n\n${escape(msg.text)}`,
+    { parse_mode: "Markdown" }
+  );
+  return;
+}
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
@@ -334,9 +346,27 @@ bot.on("message", (msg) => {
   }
 
   // MODULI / ASSISTENZA / CANDIDATURA / SPONSOR
-  if (userState.has(userId)) {
-    const type = userState.get(userId);
-    userState.delete(userId);
+if (userState.has(userId)) {
+  const type = userState.get(userId);
+  userState.delete(userId);
+
+  bot.sendMessage(chatId, "✅ Messaggio inviato con successo!");
+
+  ADMINS.forEach(adminId => {
+    bot.sendMessage(
+      adminId,
+      `📩 *${type}*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🆔 ${userId}\n\n${escape(msg.text)}`,
+      { parse_mode: "Markdown" }
+    );
+
+    // 🔁 ATTIVA CHAT CONTINUA
+    activeChats.set(userId, adminId);
+    activeChats.set(adminId, userId);
+  });
+
+  db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
+  return;
+}
 
     bot.sendMessage(chatId, "✅ Messaggio inviato con successo!");
     ADMINS.forEach(id => {
@@ -347,7 +377,16 @@ bot.on("message", (msg) => {
     db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
     return;
   }
-
+// 🔁 CHAT CONTINUA ADMIN → UTENTE
+if (ADMINS.has(userId) && activeChats.has(userId)) {
+  const targetUser = activeChats.get(userId);
+  bot.sendMessage(
+    targetUser,
+    `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
+    { parse_mode: "Markdown" }
+  );
+  return;
+}
   // RISPOSTE ADMIN
   if (ADMINS.has(userId) && adminReplyMap[userId]) {
     const targetUser = adminReplyMap[userId];
