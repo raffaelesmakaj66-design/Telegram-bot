@@ -72,10 +72,9 @@ db.all("SELECT id FROM admins", [], (err, rows) => {
 const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
 const userState = new Map(); // userId -> tipo modulo/assistenza
-const adminReplyMap = {};    // adminId -> userId per risposta
 const activeChats = new Map(); // userId <-> adminId (chat continua)
 const sponsorState = new Map(); // userId -> { step: "SHOW_INFO" | "SELECT_DURATION" | "WRITE_TEXT", duration: string }
-const ignoreMessages = new Set(); // userId che non vogliamo gestire
+const ignoreUsers = new Set(); // utenti che non devono inviare messaggi dopo /start
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
 // =====================
@@ -106,10 +105,17 @@ bot.onText(/\/start/, (msg) => {
   reviewState.delete(userId);
   sponsorState.delete(userId);
 
-  db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
+  // ❌ FERMA chat continua
+  if (activeChats.has(userId)) {
+    const adminId = activeChats.get(userId);
+    activeChats.delete(userId);
+    activeChats.delete(adminId);
+  }
 
-  // Ignora tutti i messaggi futuri di questo utente
-  ignoreMessages.add(userId);
+  // ❌ Ignora messaggi futuri finché non parte un nuovo modulo
+  ignoreUsers.add(userId);
+
+  db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
 
   bot.sendPhoto(chatId, WELCOME_IMAGE, {
     caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni:`,
@@ -139,6 +145,9 @@ bot.onText(/\/start/, (msg) => {
 bot.on("callback_query", (q) => {
   const userId = q.from.id;
   const chatId = q.message.chat.id;
+
+  // Se l'utente era in ignoreUsers, lo rimuoviamo perché sta facendo un'azione valida
+  ignoreUsers.delete(userId);
 
   // ⭐ RECENSIONI
   if (q.data.startsWith("RATE_")) {
@@ -294,33 +303,24 @@ bot.on("callback_query", (q) => {
 // MESSAGGI UTENTE
 // =====================
 bot.on("message", (msg) => {
-  const userId = msg.from.id;
-
-  // Se l'utente ha fatto /start, non gestire messaggi
-  if (ignoreMessages.has(userId)) return;
-
   if (!msg.text || msg.text.startsWith("/")) return;
   const chatId = msg.chat.id;
+  const userId = msg.from.id;
+
+  // Se l'utente è in ignoreUsers, ignora i messaggi
+  if (ignoreUsers.has(userId)) return;
 
   // 🔁 CHAT CONTINUA UTENTE → ADMIN
   if (activeChats.has(userId) && !ADMINS.has(userId)) {
     const adminId = activeChats.get(userId);
-    bot.sendMessage(
-      adminId,
-      `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
-      { parse_mode: "Markdown" }
-    );
+    bot.sendMessage(adminId, `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode: "Markdown" });
     return;
   }
 
   // 🔁 CHAT CONTINUA ADMIN → UTENTE
   if (ADMINS.has(userId) && activeChats.has(userId)) {
     const targetUser = activeChats.get(userId);
-    bot.sendMessage(
-      targetUser,
-      `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
-      { parse_mode: "Markdown" }
-    );
+    bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode: "Markdown" });
     return;
   }
 
@@ -352,7 +352,6 @@ bot.on("message", (msg) => {
     if (data.step === "WRITE_TEXT") {
       sponsorState.delete(userId);
 
-      // Scegliamo un admin disponibile a caso
       const adminArray = Array.from(ADMINS);
       if (adminArray.length === 0) {
         bot.sendMessage(chatId, "❌ Nessun admin disponibile al momento.");
@@ -360,17 +359,14 @@ bot.on("message", (msg) => {
       }
       const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)];
 
-      // Attiva chat continua
       activeChats.set(userId, assignedAdmin);
       activeChats.set(assignedAdmin, userId);
 
-      // Invia messaggio all’admin
       bot.sendMessage(assignedAdmin,
         `📢 *Nuovo Sponsor*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🕒 Durata: ${data.duration}\n\n${msg.text}`,
         { parse_mode: "Markdown" }
       );
 
-      // Conferma all’utente
       bot.sendMessage(chatId, "✅ Sponsor inviato! Ora puoi continuare a scrivere qui e ricevere risposta dall'admin.");
 
       db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
@@ -426,9 +422,9 @@ bot.onText(/\/admin remove (\d+)/, (msg, match) => {
   const fromId = msg.from.id;
   if (fromId !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può usare questo comando.");
   const remAdmin = Number(match[1]);
-  if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
+   if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
 
-    db.run("DELETE FROM admins WHERE id = ?", [remAdmin]);
+  db.run("DELETE FROM admins WHERE id = ?", [remAdmin]);
   ADMINS.delete(remAdmin);
   bot.sendMessage(msg.chat.id, `✅ Admin rimosso: ${remAdmin}`);
 });
