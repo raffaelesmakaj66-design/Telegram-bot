@@ -5,7 +5,7 @@ sqlite3.verbose();
 // =====================
 // CONFIG
 // =====================
-const TOKEN = "8183155889:AAGiD3yE-cTffZBTKB3WlxE4JbYrhC2ay3Y"; // qui metti il token del tuo bot nuovo
+const TOKEN = process.env.TELEGRAM_TOKEN;
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 if (!TOKEN) {
