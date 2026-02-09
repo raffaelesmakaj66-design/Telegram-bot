@@ -222,7 +222,11 @@ bot.on("message", (msg) => {
   if (activeChats.has(userId) && !ADMINS.has(userId)) {
     const adminId = activeChats.get(userId);
     bot.sendMessage(adminId, `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
-    bot.sendMessage(chatId, "✅ Messaggio inviato!");
+    bot.sendMessage(chatId, "✅ Messaggio inviato!").then((sentMsg) => {
+  setTimeout(() => {
+    bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
+  }, 3000); // 3000ms = 3 secondi
+});
     return;
   }
 
@@ -230,7 +234,11 @@ bot.on("message", (msg) => {
   if (ADMINS.has(userId) && activeChats.has(userId)) {
     const targetUser = activeChats.get(userId);
     bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
-    bot.sendMessage(chatId, "✅ Messaggio inviato!");
+    bot.sendMessage(chatId, "✅ Messaggio inviato!").then((sentMsg) => {
+  setTimeout(() => {
+    bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
+  }, 3000); // 3000ms = 3 secondi
+});
     return;
   }
 
@@ -255,7 +263,11 @@ bot.on("message", (msg) => {
     activeChats.set(assignedAdmin, userId);
 
     bot.sendMessage(assignedAdmin, `📩 ${type} da ${msg.from.first_name}:\n\n${escape(msg.text)}`);
-    bot.sendMessage(chatId, "✅ Messaggio inviato! Ora puoi continuare a scrivere qui e ricevere risposta dall'admin.");
+    bot.sendMessage(chatId, "✅ Messaggio inviato! Ora puoi continuare a scrivere e ricevere risposta dall'admin.").then((sentMsg) => {
+  setTimeout(() => {
+    bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
+  }, 3000); // 3000ms = 3 secondi
+});
     return;
   }
 
