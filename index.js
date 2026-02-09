@@ -193,7 +193,7 @@ bot.on("callback_query", (q) => {
     case "OPEN_CANDIDATURA":
       userState.set(userId, "CANDIDATURA");
       bot.sendMessage(chatId,
-`📝 *Modulo Candidatura Dipendente*\n\nCompila il tuo curriculum su un libro seguendo questi punti:\n\n` +
+`📝 *Come fare il curriculum*\n\nCompila il tuo curriculum su un libro seguendo questi punti:\n\n` +
 `1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome, ore settimanali e totali\n` +
 `2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni\n` +
 `3️⃣ *Perché dovremmo sceglierti?*\n` +
