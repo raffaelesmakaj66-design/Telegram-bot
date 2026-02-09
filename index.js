@@ -185,7 +185,7 @@ bot.on("callback_query", (q) => {
     case "OPEN_SPONSOR":
       sponsorState.set(userId, { step: "SHOW_INFO" });
       bot.sendMessage(chatId,
-        "*📢 Prezzi Sponsor:*\n\n12h » 500\n24h » 1000\n36h » 1600\n48h » 2100\nPermanente » 3200",
+        "*📢 Prezzi Sponsor:*\n\n12h » 500€\n24h » 1000€\n36h » 1600€\n48h » 2100€\nPermanente » 3200€",
         { parse_mode: "Markdown", reply_markup: { inline_keyboard: [[{ text: "✅ Continua", callback_data: "SPONSOR_CONTINUA" }]] } }
       );
       break;
@@ -200,7 +200,7 @@ bot.on("callback_query", (q) => {
 `4️⃣ *Esperienze lavorative*: se presenti e se attualmente lavori in un’azienda\n` +
 `5️⃣ *Competenze pratiche*: uso della cassa, capacità di cucinare\n` +
 `6️⃣ *Pregi e difetti*\n\n` +
-`📍 *Consegna: Bancarella 8, coordinate -505 64 22, davanti all’ospedale*`,
+`📍 *Consegna*: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
         { parse_mode: "Markdown" });
       break;
   }
