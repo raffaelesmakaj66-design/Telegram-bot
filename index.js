@@ -72,8 +72,10 @@ db.all("SELECT id FROM admins", [], (err, rows) => {
 const reviewState = new Map(); // userId -> { rating, chatId, waitingComment }
 const reviewCooldown = new Map();
 const userState = new Map(); // userId -> tipo modulo/assistenza
+const adminReplyMap = {};    // adminId -> userId per risposta
 const activeChats = new Map(); // userId <-> adminId (chat continua)
 const sponsorState = new Map(); // userId -> { step: "SHOW_INFO" | "SELECT_DURATION" | "WRITE_TEXT", duration: string }
+const ignoreMessages = new Set(); // userId che non vogliamo gestire
 const REVIEW_COOLDOWN_MS = 60 * 1000;
 
 // =====================
@@ -105,6 +107,9 @@ bot.onText(/\/start/, (msg) => {
   sponsorState.delete(userId);
 
   db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
+
+  // Ignora tutti i messaggi futuri di questo utente
+  ignoreMessages.add(userId);
 
   bot.sendPhoto(chatId, WELCOME_IMAGE, {
     caption: `👋 *Benvenuto nel bot ufficiale di CapyBar!*\n\nPremi uno dei seguenti bottoni:`,
@@ -289,9 +294,13 @@ bot.on("callback_query", (q) => {
 // MESSAGGI UTENTE
 // =====================
 bot.on("message", (msg) => {
-  if (!msg.text) return; // ✅ evita crash se non è testo
-  const chatId = msg.chat.id;
   const userId = msg.from.id;
+
+  // Se l'utente ha fatto /start, non gestire messaggi
+  if (ignoreMessages.has(userId)) return;
+
+  if (!msg.text || msg.text.startsWith("/")) return;
+  const chatId = msg.chat.id;
 
   // 🔁 CHAT CONTINUA UTENTE → ADMIN
   if (activeChats.has(userId) && !ADMINS.has(userId)) {
@@ -301,7 +310,6 @@ bot.on("message", (msg) => {
       `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
       { parse_mode: "Markdown" }
     );
-    bot.sendMessage(chatId, "✅ Messaggio inviato!");
     return;
   }
 
@@ -313,7 +321,6 @@ bot.on("message", (msg) => {
       `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
       { parse_mode: "Markdown" }
     );
-    bot.sendMessage(chatId, "✅ Messaggio inviato!");
     return;
   }
 
@@ -345,6 +352,7 @@ bot.on("message", (msg) => {
     if (data.step === "WRITE_TEXT") {
       sponsorState.delete(userId);
 
+      // Scegliamo un admin disponibile a caso
       const adminArray = Array.from(ADMINS);
       if (adminArray.length === 0) {
         bot.sendMessage(chatId, "❌ Nessun admin disponibile al momento.");
@@ -352,15 +360,19 @@ bot.on("message", (msg) => {
       }
       const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)];
 
+      // Attiva chat continua
       activeChats.set(userId, assignedAdmin);
       activeChats.set(assignedAdmin, userId);
 
+      // Invia messaggio all’admin
       bot.sendMessage(assignedAdmin,
         `📢 *Nuovo Sponsor*\n👤 ${msg.from.first_name} (@${msg.from.username || "nessuno"})\n🕒 Durata: ${data.duration}\n\n${msg.text}`,
         { parse_mode: "Markdown" }
       );
 
+      // Conferma all’utente
       bot.sendMessage(chatId, "✅ Sponsor inviato! Ora puoi continuare a scrivere qui e ricevere risposta dall'admin.");
+
       db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
       return;
     }
@@ -387,12 +399,13 @@ bot.on("message", (msg) => {
     );
 
     bot.sendMessage(chatId, "✅ Messaggio inviato! Ora puoi continuare a scrivere qui e ricevere risposta dall'admin.");
+
     db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
     return;
   }
 
-  // Inserimento utente nel DB
   db.run("INSERT OR IGNORE INTO users (id) VALUES (?)", [userId]);
+  return;
 });
 
 // =====================
@@ -415,7 +428,7 @@ bot.onText(/\/admin remove (\d+)/, (msg, match) => {
   const remAdmin = Number(match[1]);
   if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
 
-  db.run("DELETE FROM admins WHERE id = ?", [remAdmin]);
+    db.run("DELETE FROM admins WHERE id = ?", [remAdmin]);
   ADMINS.delete(remAdmin);
   bot.sendMessage(msg.chat.id, `✅ Admin rimosso: ${remAdmin}`);
 });
@@ -432,22 +445,13 @@ bot.onText(/\/id/, (msg) => {
 // =====================
 bot.onText(/\/stats/, (msg) => {
   const chatId = msg.chat.id;
-
-  // Conta utenti
   db.get("SELECT COUNT(*) as n FROM users", [], (err, row) => {
     const totalUsers = row ? row.n : 0;
-
-    // Conta recensioni
     db.get("SELECT COUNT(*) as n FROM reviews", [], (err, row2) => {
       const totalReviews = row2 ? row2.n : 0;
-
-      // Media voti
       getAverage(avgRating => {
         bot.sendMessage(chatId,
-          `📊 *Statistiche Bot*\n\n` +
-          `👥 Utenti totali: ${totalUsers}\n` +
-          `⭐ Recensioni totali: ${totalReviews}\n` +
-          `📊 Voto medio: ${avgRating}`,
+          `📊 *Statistiche Bot*\n\n👥 Utenti totali: ${totalUsers}\n⭐ Recensioni totali: ${totalReviews}\n📊 Voto medio: ${avgRating}`,
           { parse_mode:"Markdown" }
         );
       });
