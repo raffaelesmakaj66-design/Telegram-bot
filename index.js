@@ -156,9 +156,9 @@ bot.on("callback_query", (q) => {
     OPEN_CANDIDATURA: ["CANDIDATURA",
 `📝 *Modulo Candidatura Dipendente*
 
-1️⃣ Dati personali: @ Telegram, telefono, nome, ore settimanali e totali (/tempo)
+1️⃣ Dati personali: @ Telegram, telefono, nome, ore settimanali e totali
 2️⃣ Parlaci di te: chi sei, passioni, motivazioni
-3️⃣ Perché dovremmo sceglierti 
+3️⃣ Perché dovremmo sceglierti
 4️⃣ Esperienze lavorative: se presenti e se attualmente lavori in un'azienda
 5️⃣ Competenze pratiche: uso della cassa, capacità di cucinare
 6️⃣ Pregi e difetti
