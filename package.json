@@ -1,10 +1,14 @@
 {
-  "name": "nome-progetto",
+  "name": "capybar-bot",
   "version": "1.0.0",
+  "description": "Bot Telegram CapyBar",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
     "start": "node index.js"
+  },
+  "engines": {
+    "node": "20.x"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.61.0",
