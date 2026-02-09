@@ -194,13 +194,13 @@ bot.on("callback_query", (q) => {
       userState.set(userId, "CANDIDATURA");
       bot.sendMessage(chatId,
 `📝 *Modulo Candidatura Dipendente*\n\nCompila il tuo curriculum su un libro seguendo questi punti:\n\n` +
-`1️⃣ Dati personali: @ Telegram, Discord, telefono, nome, ore settimanali e totali\n` +
-`2️⃣ Parlaci di te: chi sei, passioni, motivazioni\n` +
-`3️⃣ Perché dovremmo sceglierti?\n` +
-`4️⃣ Esperienze lavorative: se presenti e se attualmente lavori in un’azienda\n` +
-`5️⃣ Competenze pratiche: uso della cassa, capacità di cucinare\n` +
-`6️⃣ Pregi e difetti\n\n` +
-`📍 Consegna: Bancarella 8, coordinate -505 64 22, davanti all’ospedale`,
+`1️⃣ *Dati personali*: @ Telegram, Discord, telefono, nome, ore settimanali e totali\n` +
+`2️⃣ *Parlaci di te*: chi sei, passioni, motivazioni\n` +
+`3️⃣ *Perché dovremmo sceglierti?*\n` +
+`4️⃣ *Esperienze lavorative*: se presenti e se attualmente lavori in un’azienda\n` +
+`5️⃣ *Competenze pratiche*: uso della cassa, capacità di cucinare\n` +
+`6️⃣ *Pregi e difetti*\n\n` +
+`📍 *Consegna: Bancarella 8, coordinate -505 64 22, davanti all’ospedale*`,
         { parse_mode: "Markdown" });
       break;
   }
