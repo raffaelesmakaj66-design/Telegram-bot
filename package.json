@@ -1,7 +1,11 @@
 {
-  "name": "capybar-bot",
+  "name": "nome-progetto",
   "version": "1.0.0",
-  "type": "module",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
     "node-telegram-bot-api": "^0.61.0",
     "sqlite3": "^5.1.6"
