@@ -186,7 +186,9 @@ bot.on("callback_query", (q) => {
 
 📜 Regole ➪ Le offerte fake o il mancato ritiro saranno sanzionati.
 
-💡 Per offrire ➪ usa i commenti qui sotto!`,
+💡 Per offrire ➪ usa i commenti qui sotto!
+
+🌆 *Allega una foto dell'asta se possibile*`,
   { parse_mode: "Markdown" }
 );
   break;
