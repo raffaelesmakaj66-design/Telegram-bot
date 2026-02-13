@@ -271,26 +271,36 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // MODULI / ASSISTENZA / CANDIDATURA / SPONSOR
-  if (userState.has(userId)) {
-    const type = userState.get(userId);
-    userState.delete(userId);
+// MODULI / ASSISTENZA / CANDIDATURA / SPONSOR
+if (userState.has(userId)) {
+  const type = userState.get(userId);
 
-    const adminArray = Array.from(ADMINS);
-    if (adminArray.length === 0) { bot.sendMessage(chatId, "❌ Nessun admin disponibile"); return; }
-    const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)];
-
-    activeChats.set(userId, assignedAdmin);
-    activeChats.set(assignedAdmin, userId);
-
-    bot.sendMessage(assignedAdmin, `📩 ${type} da ${msg.from.first_name}:\n\n${escape(msg.text)}`);
-    bot.sendMessage(chatId, "✅ Messaggio inviato! Ora puoi continuare a scrivere e ricevere risposta dall'admin.").then((sentMsg) => {
-  setTimeout(() => {
-    bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
-  }, 3000); // 3000ms = 3 secondi
-});
+  const adminArray = Array.from(ADMINS);
+  if (adminArray.length === 0) {
+    bot.sendMessage(chatId, "❌ Nessun admin disponibile");
     return;
   }
+
+  const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)];
+
+  // Salva la chat attiva solo se non esiste già
+  if (!activeChats.has(userId)) {
+    activeChats.set(userId, assignedAdmin);
+    activeChats.set(assignedAdmin, userId);
+  }
+
+  userState.delete(userId); // rimuovi lo stato solo dopo aver assegnato l'admin
+
+  bot.sendMessage(assignedAdmin, `📩 ${type} da ${msg.from.first_name}:\n\n${escape(msg.text)}`);
+
+  bot.sendMessage(chatId, "✅ Messaggio inviato! Ora puoi continuare a scrivere qui e ricevere risposta dall'admin.").then((sentMsg) => {
+    setTimeout(() => {
+      bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
+    }, 3000);
+  });
+
+  return;
+}
 
   if (sponsorState.has(userId)) {
     const data = sponsorState.get(userId);
