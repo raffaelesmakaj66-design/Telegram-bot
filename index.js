@@ -168,9 +168,28 @@ bot.on("callback_query", (q) => {
       break;
 
     case "OPEN_ASTA":
-      userState.set(userId, "ASTA");
-      bot.sendMessage(chatId, "🏷️ *Modulo Asta*\nScrivi in un unico messaggio:\n1️⃣ Nickname\n2️⃣ Oggetto/i\n3️⃣ Prezzo base\n4️⃣ Rilancio", { parse_mode: "Markdown" });
-      break;
+  userState.set(userId, "ASTA");
+  bot.sendMessage(chatId,
+`💎 *Asta | CapyBar*
+
+🎒 Oggetto ➪ 
+
+🪶 Descrizione ➪ 
+
+💰 Base d’asta ➪ 
+
+📈 Rilancio minimo ➪ 
+
+💎 Prezzo “Compra Ora” ➪ 
+
+⏱️ Fine asta ➪ 1h dopo l'ultima offerta
+
+📜 Regole ➪ Le offerte fake o il mancato ritiro saranno sanzionati.
+
+💡 Per offrire ➪ usa i commenti qui sotto!`,
+  { parse_mode: "Markdown" }
+);
+  break;
 
     case "OPEN_ORDINI":
       userState.set(userId, "ORDINE");
