@@ -168,8 +168,8 @@ bot.on("callback_query", (q) => {
       break;
 
     case "OPEN_ASTA":
-  userState.set(userId, "ASTA");
-  bot.sendMessage(chatId,
+      userState.set(userId, "ASTA");
+      bot.sendMessage(chatId,
 `💎 *Asta | CapyBar*
 
 🎒 Oggetto ➪ 
@@ -189,9 +189,9 @@ bot.on("callback_query", (q) => {
 💡 Per offrire ➪ usa i commenti qui sotto!
 
 🌆 *Allega una foto dell'asta se possibile*`,
-  { parse_mode: "Markdown" }
-);
-  break;
+      { parse_mode: "Markdown" }
+      );
+      break;
 
     case "OPEN_ORDINI":
       userState.set(userId, "ORDINE");
@@ -244,17 +244,14 @@ bot.on("message", (msg) => {
   // SE È UNA CHAT GIÀ ATTIVA
   // =========================
   if (activeChats.has(userId)) {
-
     const targetId = activeChats.get(userId);
 
-    // Se scrive un admin
     if (ADMINS.has(userId)) {
       bot.sendMessage(targetId,
         `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
         { parse_mode: "Markdown" }
       );
     } else {
-      // Se scrive un utente
       bot.sendMessage(targetId,
         `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
         { parse_mode: "Markdown" }
@@ -262,9 +259,7 @@ bot.on("message", (msg) => {
     }
 
     bot.sendMessage(chatId, "✅ Messaggio inviato!").then((sentMsg) => {
-      setTimeout(() => {
-        bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
-      }, 3000);
+      setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
     });
 
     return;
@@ -276,7 +271,6 @@ bot.on("message", (msg) => {
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
-
     bot.sendMessage(chatId,
       `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}`
     );
@@ -284,10 +278,9 @@ bot.on("message", (msg) => {
   }
 
   // =========================
-  // MODULI (PRIMO MESSAGGIO)
+  // MODULI / ASSISTENZA / CANDIDATURA
   // =========================
   if (userState.has(userId)) {
-
     const type = userState.get(userId);
     userState.delete(userId);
 
@@ -297,7 +290,7 @@ bot.on("message", (msg) => {
       return;
     }
 
-    const assignedAdmin = adminArray[0]; // usa sempre il primo admin (più stabile)
+    const assignedAdmin = adminArray[0]; // usa sempre il primo admin
 
     activeChats.set(userId, assignedAdmin);
     activeChats.set(assignedAdmin, userId);
@@ -307,12 +300,8 @@ bot.on("message", (msg) => {
       { parse_mode: "Markdown" }
     );
 
-    bot.sendMessage(chatId,
-      "✅ Messaggio inviato! Ora puoi continuare a scrivere qui."
-    ).then((sentMsg) => {
-      setTimeout(() => {
-        bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
-      }, 3000);
+    bot.sendMessage(chatId, "✅ Messaggio inviato! Ora puoi continuare a scrivere qui.").then((sentMsg) => {
+      setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
     });
 
     return;
@@ -322,11 +311,8 @@ bot.on("message", (msg) => {
   // SPONSOR
   // =========================
   if (sponsorState.has(userId)) {
-
     const data = sponsorState.get(userId);
-
     if (data.step === "WRITE_TEXT") {
-
       sponsorState.delete(userId);
 
       const assignedAdmin = Array.from(ADMINS)[0];
@@ -339,19 +325,11 @@ bot.on("message", (msg) => {
         { parse_mode: "Markdown" }
       );
 
-      bot.sendMessage(chatId,
-        "✅ Sponsor inviato! Ora puoi continuare a scrivere qui."
-      );
-
+      bot.sendMessage(chatId, "✅ Sponsor inviato! Ora puoi continuare a scrivere qui.");
       return;
     }
   }
-
 });
-
-    return;
-  }
-
 
 // =====================
 // COMANDI ADMIN
@@ -380,28 +358,24 @@ bot.onText(/\/id/, (msg) => bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegra
 bot.onText(/\/stats/, (msg) => {
   bot.sendMessage(msg.chat.id, `📊 Statistiche Bot:\n👥 Utenti totali: ${USERS.size}\n⭐ Recensioni totali: ${reviewState.size}\n📊 Voto medio: ${getAverage()}`);
 });
+
 // =====================
 // COMANDO LISTA ADMIN LEGIBILE
 // =====================
 bot.onText(/\/admin list/, async (msg) => {
-  if (msg.from.id !== SUPER_ADMIN) {
-    return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può vedere la lista degli admin.");
-  }
+  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può vedere la lista degli admin.");
 
-  if (ADMINS.size === 0) {
-    return bot.sendMessage(msg.chat.id, "⚠️ Nessun admin presente.");
-  }
+  if (ADMINS.size === 0) return bot.sendMessage(msg.chat.id, "⚠️ Nessun admin presente.");
 
   let adminInfoList = [];
 
   for (const id of ADMINS) {
     try {
-      const chat = await bot.getChat(id); // Recupera info dell'admin
+      const chat = await bot.getChat(id);
       const name = chat.first_name || "N/A";
       const username = chat.username ? `@${chat.username}` : "N/A";
       adminInfoList.push(`${name} (${username}) - ID: ${id}`);
     } catch (err) {
-      // Se non è possibile recuperare info, mostra solo l'ID
       adminInfoList.push(`ID: ${id}`);
     }
   }
