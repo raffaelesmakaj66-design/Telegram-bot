@@ -348,33 +348,7 @@ bot.on("message", (msg) => {
   }
 
 });
-  if (!msg.text || msg.text.startsWith("/")) return;
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
 
-  USERS.add(userId);
-
-  // CHAT UTENTE -> ADMIN
-  if (activeChats.has(userId) && !ADMINS.has(userId)) {
-    const adminId = activeChats.get(userId);
-    bot.sendMessage(adminId, `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
-    bot.sendMessage(chatId, "✅ Messaggio inviato!").then((sentMsg) => {
-  setTimeout(() => {
-    bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
-  }, 3000); // 3000ms = 3 secondi
-});
-    return;
-  }
-
-  // CHAT ADMIN -> UTENTE
-  if (ADMINS.has(userId) && activeChats.has(userId)) {
-    const targetUser = activeChats.get(userId);
-    bot.sendMessage(targetUser, `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`, { parse_mode:"Markdown" });
-    bot.sendMessage(chatId, "✅ Messaggio inviato!").then((sentMsg) => {
-  setTimeout(() => {
-    bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {});
-  }, 3000); // 3000ms = 3 secondi
-});
     return;
   }
 
