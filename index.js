@@ -248,47 +248,51 @@ bot.on("message", (msg) => {
   // =========================
 // GESTIONE CHAT ATTIVA
 // =========================
-if (activeChats.has(userId)) {
-  const targetId = activeChats.get(userId);
+if (ADMINS.has(userId)) {
+  // Admin o super admin che scrive
+  const targetUserId = activeChats.get(userId);
+  if (!targetUserId) {
+    bot.sendMessage(chatId, "❌ Nessuna chat attiva assegnata.");
+    return;
+  }
 
-  // Se scrive un admin → invia all'utente
-  if (ADMINS.has(userId)) {
-    bot.sendMessage(targetId,
-      `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
+  // Invia la risposta all'utente
+  bot.sendMessage(targetUserId,
+    `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
+    { parse_mode: "Markdown" }
+  );
+
+  // Mantieni la chat attiva tra admin e utente
+  activeChats.set(userId, targetUserId);
+  activeChats.set(targetUserId, userId);
+
+  // Conferma invio all'admin
+  bot.sendMessage(chatId, "✅ Messaggio inviato all'utente!").then(sentMsg => {
+    setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
+  });
+
+  return;
+}
+
+if (!ADMINS.has(userId)) {
+  // Utente che scrive
+  const adminArray = Array.from(ADMINS);
+  adminArray.forEach(adminId => {
+    bot.sendMessage(adminId,
+      `💬 *Messaggio da ${msg.from.first_name}:*\n👤 ID: ${userId}\n\n${escape(msg.text)}`,
       { parse_mode: "Markdown" }
     );
 
-    // Mantieni la chat attiva
-    activeChats.set(userId, targetId);
-    activeChats.set(targetId, userId);
+    // Aggiorna la chat attiva con il primo admin (o super admin)
+    activeChats.set(userId, adminId);
+    activeChats.set(adminId, userId);
+  });
 
-    bot.sendMessage(chatId, "✅ Messaggio inviato all'utente!").then(sentMsg => {
-      setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
-    });
+  bot.sendMessage(chatId, "✅ Messaggio inviato a tutti gli admin!").then(sentMsg => {
+    setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
+  });
 
-    return;
-  }
-
-  // Se scrive un utente → invia a tutti gli admin
-  if (!ADMINS.has(userId)) {
-    const adminArray = Array.from(ADMINS);
-    adminArray.forEach(adminId => {
-      bot.sendMessage(adminId,
-        `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
-        { parse_mode: "Markdown" }
-      );
-
-      // Aggiorna la chat attiva con il primo admin
-      activeChats.set(userId, adminId);
-      activeChats.set(adminId, userId);
-    });
-
-    bot.sendMessage(chatId, "✅ Messaggio inviato a tutti gli admin!").then(sentMsg => {
-      setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
-    });
-
-    return;
-  }
+  return;
 }
 
   // =========================
