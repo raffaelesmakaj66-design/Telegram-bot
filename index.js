@@ -246,29 +246,29 @@ bot.on("message", (msg) => {
   USERS.add(userId);
 
   // =========================
-  // SE È UNA CHAT GIÀ ATTIVA
-  // =========================
-  if (activeChats.has(userId)) {
-    const targetId = activeChats.get(userId);
+// SE È UNA CHAT GIÀ ATTIVA (commentata per inviare a tutti gli admin)
+// =========================
+// if (activeChats.has(userId)) {
+//   const targetId = activeChats.get(userId);
 
-    if (ADMINS.has(userId)) {
-      bot.sendMessage(targetId,
-        `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
-        { parse_mode: "Markdown" }
-      );
-    } else {
-      bot.sendMessage(targetId,
-        `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
-        { parse_mode: "Markdown" }
-      );
-    }
+//   if (ADMINS.has(userId)) {
+//     bot.sendMessage(targetId,
+//       `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
+//       { parse_mode: "Markdown" }
+//     );
+//   } else {
+//     bot.sendMessage(targetId,
+//       `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
+//       { parse_mode: "Markdown" }
+//     );
+//   }
 
-    bot.sendMessage(chatId, "✅ Messaggio inviato!").then((sentMsg) => {
-      setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
-    });
+//   bot.sendMessage(chatId, "✅ Messaggio inviato!").then((sentMsg) => {
+//     setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
+//   });
 
-    return;
-  }
+//   return;
+// }
 
   // =========================
   // COMMENTO RECENSIONE
@@ -340,6 +340,8 @@ if (sponsorState.has(userId)) {
     return;
   }
 }
+// CHIUSURA EVENTO MESSAGE
+});
 
 // =====================
 // COMANDI ADMIN
