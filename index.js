@@ -7,7 +7,11 @@ const TelegramBot = require("node-telegram-bot-api");
 // CONFIG
 // =====================
 const TOKEN = process.env.TELEGRAM_TOKEN;
-const SUPER_ADMIN = Number(process.env.SUPER_ADMIN);
+const SUPER_ADMINS = new Set([
+  Number(process.env.SUPER_ADMIN),
+  5799276579,   // ← metti qui l'ID della seconda persona
+  5318254606    // ← terza persona se vuoi
+]);
 
 if (!TOKEN || !SUPER_ADMIN) {
   console.error("❌ TELEGRAM_TOKEN o SUPER_ADMIN mancante!");
