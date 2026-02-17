@@ -295,7 +295,7 @@ bot.on("message", (msg) => {
       return;
     }
 
-    const assignedAdmin = adminArray[0]; // usa sempre il primo admin
+    const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)]; // usa sempre il primo admin
 
     activeChats.set(userId, assignedAdmin);
     activeChats.set(assignedAdmin, userId);
