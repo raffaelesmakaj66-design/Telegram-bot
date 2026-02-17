@@ -7,13 +7,15 @@ const TelegramBot = require("node-telegram-bot-api");
 // CONFIG
 // =====================
 const TOKEN = process.env.TELEGRAM_TOKEN;
-const SUPER_ADMINS = new Set([
-  Number(process.env.SUPER_ADMIN),
-  5799276579,   // ← metti qui l'ID della seconda persona
-  5318254606    // ← terza persona se vuoi
+const SUPER_ADMIN = Number(process.env.SUPER_ADMIN);
+
+const ADMINS = new Set([
+  SUPER_ADMIN,
+  5799276579,
+  5318254606
 ]);
 
-if (!TOKEN || !SUPER_ADMIN) {
+if (!TOKEN || !process.env.SUPER_ADMIN) {
   console.error("❌ TELEGRAM_TOKEN o SUPER_ADMIN mancante!");
   process.exit(1);
 }
@@ -28,7 +30,6 @@ const reviewState = new Map();       // userId -> { rating, waitingComment }
 const activeChats = new Map();       // userId <-> adminId
 const userState = new Map();         // userId -> tipo modulo/assistenza/candidatura
 const sponsorState = new Map();      // userId -> { step, duration }
-const ADMINS = new Set([SUPER_ADMIN]);
 const USERS = new Set();
 
 // =====================
