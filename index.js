@@ -290,20 +290,18 @@ bot.on("message", (msg) => {
     userState.delete(userId);
 
     const adminArray = Array.from(ADMINS);
-    if (adminArray.length === 0) {
-      bot.sendMessage(chatId, "❌ Nessun admin disponibile");
-      return;
-    }
+if (adminArray.length === 0) {
+  bot.sendMessage(chatId, "❌ Nessun admin disponibile");
+  return;
+}
 
-    const assignedAdmin = adminArray[Math.floor(Math.random() * adminArray.length)]; // usa sempre il primo admin
-
-    activeChats.set(userId, assignedAdmin);
-    activeChats.set(assignedAdmin, userId);
-
-    bot.sendMessage(assignedAdmin,
-      `📩 *${type}*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escape(msg.text)}`,
-      { parse_mode: "Markdown" }
-    );
+// Invia a TUTTI gli admin
+adminArray.forEach(adminId => {
+  bot.sendMessage(adminId,
+    `📩 *${type}*\n👤 ${msg.from.first_name}\n🆔 ${userId}\n\n${escape(msg.text)}`,
+    { parse_mode: "Markdown" }
+  );
+});
 
     bot.sendMessage(chatId, "✅ Messaggio inviato! Ora puoi continuare a scrivere qui.").then((sentMsg) => {
       setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
