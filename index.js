@@ -325,7 +325,10 @@ bot.on("message", (msg) => {
       activeChats.set(userId, assignedAdmin);
       activeChats.set(assignedAdmin, userId);
 
-      bot.sendMessage(assignedAdmin,
+      adminArray.forEach(adminId => {
+  bot.sendMessage(adminId,
+    });
+    
         `📢 *Sponsor*\n👤 ${msg.from.first_name}\nDurata: ${data.duration}\n\n${escape(msg.text)}`,
         { parse_mode: "Markdown" }
       );
