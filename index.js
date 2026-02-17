@@ -398,6 +398,34 @@ bot.onText(/\/admin remove (\d+)/, (msg, match) => {
 });
 
 // =====================
+// BROADCAST (solo admin)
+// =====================
+bot.onText(/\/broadcast (.+)/, async (msg, match) => {
+  if (!ADMINS.has(msg.from.id)) {
+    return bot.sendMessage(msg.chat.id, "❌ Solo gli admin possono usare questo comando.");
+  }
+
+  const text = match[1];
+  let success = 0;
+  let failed = 0;
+
+  for (const userId of USERS) {
+    try {
+      await bot.sendMessage(userId, `📢 *Comunicazione ufficiale:*\n\n${escape(text)}`, {
+        parse_mode: "Markdown"
+      });
+      success++;
+    } catch (err) {
+      failed++;
+    }
+  }
+
+  bot.sendMessage(msg.chat.id,
+    `✅ Broadcast completato!\n\n📨 Inviati: ${success}\n❌ Falliti: ${failed}`
+  );
+});
+
+// =====================
 // COMANDI BASE
 // =====================
 bot.onText(/\/id/, (msg) => bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`));
