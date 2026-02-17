@@ -246,29 +246,50 @@ bot.on("message", (msg) => {
   USERS.add(userId);
 
   // =========================
-// SE È UNA CHAT GIÀ ATTIVA (commentata per inviare a tutti gli admin)
+// GESTIONE CHAT ATTIVA
 // =========================
-// if (activeChats.has(userId)) {
-//   const targetId = activeChats.get(userId);
+if (activeChats.has(userId)) {
+  const targetId = activeChats.get(userId);
 
-//   if (ADMINS.has(userId)) {
-//     bot.sendMessage(targetId,
-//       `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
-//       { parse_mode: "Markdown" }
-//     );
-//   } else {
-//     bot.sendMessage(targetId,
-//       `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
-//       { parse_mode: "Markdown" }
-//     );
-//   }
+  // Se scrive un admin → invia all'utente
+  if (ADMINS.has(userId)) {
+    bot.sendMessage(targetId,
+      `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
+      { parse_mode: "Markdown" }
+    );
 
-//   bot.sendMessage(chatId, "✅ Messaggio inviato!").then((sentMsg) => {
-//     setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
-//   });
+    // Mantieni la chat attiva
+    activeChats.set(userId, targetId);
+    activeChats.set(targetId, userId);
 
-//   return;
-// }
+    bot.sendMessage(chatId, "✅ Messaggio inviato all'utente!").then(sentMsg => {
+      setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
+    });
+
+    return;
+  }
+
+  // Se scrive un utente → invia a tutti gli admin
+  if (!ADMINS.has(userId)) {
+    const adminArray = Array.from(ADMINS);
+    adminArray.forEach(adminId => {
+      bot.sendMessage(adminId,
+        `💬 *Messaggio da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
+        { parse_mode: "Markdown" }
+      );
+
+      // Aggiorna la chat attiva con il primo admin
+      activeChats.set(userId, adminId);
+      activeChats.set(adminId, userId);
+    });
+
+    bot.sendMessage(chatId, "✅ Messaggio inviato a tutti gli admin!").then(sentMsg => {
+      setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
+    });
+
+    return;
+  }
+}
 
   // =========================
   // COMMENTO RECENSIONE
