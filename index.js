@@ -312,32 +312,36 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // =========================
-  // SPONSOR
-  // =========================
-  if (sponsorState.has(userId)) {
-    const data = sponsorState.get(userId);
-    if (data.step === "WRITE_TEXT") {
-      sponsorState.delete(userId);
+// =========================
+// SPONSOR
+// =========================
+if (sponsorState.has(userId)) {
+  const data = sponsorState.get(userId);
 
-      const assignedAdmin = Array.from(ADMINS)[0];
+  if (data.step === "WRITE_TEXT") {
+    sponsorState.delete(userId);
 
-      activeChats.set(userId, assignedAdmin);
-      activeChats.set(assignedAdmin, userId);
-
-      adminArray.forEach(adminId => {
-  bot.sendMessage(adminId,
-    });
-    
-        `📢 *Sponsor*\n👤 ${msg.from.first_name}\nDurata: ${data.duration}\n\n${escape(msg.text)}`,
-        { parse_mode: "Markdown" }
-      );
-
-      bot.sendMessage(chatId, "✅ Sponsor inviato! Ora puoi continuare a scrivere qui.");
+    const adminArray = Array.from(ADMINS);
+    if (adminArray.length === 0) {
+      bot.sendMessage(chatId, "❌ Nessun admin disponibile");
       return;
     }
+
+    // Invia a TUTTI gli admin
+    adminArray.forEach(adminId => {
+      bot.sendMessage(adminId,
+        `📢 *Sponsor*\n👤 ${msg.from.first_name}\n🆔 ${userId}\nDurata: ${data.duration}\n\n${escape(msg.text)}`,
+        { parse_mode: "Markdown" }
+      );
+    });
+
+    bot.sendMessage(chatId, "✅ Sponsor inviato! Ora puoi continuare a scrivere qui.").then((sentMsg) => {
+      setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
+    });
+
+    return;
   }
-});
+}
 
 // =====================
 // COMANDI ADMIN
