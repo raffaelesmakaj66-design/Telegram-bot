@@ -246,7 +246,7 @@ bot.on("message", (msg) => {
   USERS.add(userId);
 
   // =========================
-// GESTIONE CHAT ATTIVA
+// GESTIONE CHAT ATTIVA (utente ↔ tutti gli admin)
 // =========================
 if (ADMINS.has(userId)) {
   // Admin o super admin che scrive
@@ -256,18 +256,28 @@ if (ADMINS.has(userId)) {
     return;
   }
 
-  // Invia la risposta all'utente
+  // 1️⃣ Invia la risposta all'utente
   bot.sendMessage(targetUserId,
     `💬 *Risposta da ${msg.from.first_name}:*\n\n${escape(msg.text)}`,
     { parse_mode: "Markdown" }
   );
 
+  // 2️⃣ Invia la risposta a tutti gli altri admin (compreso super admin)
+  ADMINS.forEach(adminId => {
+    if (adminId !== userId) { // non rimandare al mittente
+      bot.sendMessage(adminId,
+        `💬 *${msg.from.first_name} ha risposto a ${targetUserId}:*\n\n${escape(msg.text)}`,
+        { parse_mode: "Markdown" }
+      );
+    }
+  });
+
   // Mantieni la chat attiva tra admin e utente
   activeChats.set(userId, targetUserId);
   activeChats.set(targetUserId, userId);
 
-  // Conferma invio all'admin
-  bot.sendMessage(chatId, "✅ Messaggio inviato all'utente!").then(sentMsg => {
+  // Conferma invio all'admin mittente
+  bot.sendMessage(chatId, "✅ Messaggio inviato all'utente e agli admin!").then(sentMsg => {
     setTimeout(() => bot.deleteMessage(chatId, sentMsg.message_id).catch(() => {}), 3000);
   });
 
