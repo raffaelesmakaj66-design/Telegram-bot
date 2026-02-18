@@ -1,4 +1,8 @@
 {
   "users": [],
-  "admins": []
+  "admins": [],
+  "stats": {
+    "totalReviews": 0,
+    "totalRating": 0
+  }
 }
