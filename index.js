@@ -26,9 +26,16 @@ function saveDB() {
 // CONFIG
 // =====================
 const TOKEN = process.env.TELEGRAM_TOKEN;
-const SUPER_ADMIN = Number(process.env.SUPER_ADMIN);
+const SUPER_ADMINS = new Set([
+  Number(process.env.SUPER_ADMIN), // principale da env
+  5799276579,  // metti qui il primo nuovo super admin
+  5318254606   // metti qui il secondo nuovo super admin
+]);
 
-const ADMINS = new Set([SUPER_ADMIN, ...db.admins]);
+const ADMINS = new Set([
+  ...SUPER_ADMINS,
+  ...db.admins
+]);
 
 if (!TOKEN || !process.env.SUPER_ADMIN) {
   console.error("❌ TELEGRAM_TOKEN o SUPER_ADMIN mancante!");
@@ -416,7 +423,7 @@ bot.onText(/\/admin add (\d+)/, (msg, match) => {
 });
 
 bot.onText(/\/admin remove (\d+)/, (msg, match) => {
-  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può rimuovere admin.");
+  if (!SUPER_ADMINS.has(msg.from.id)) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può rimuovere admin.");
   const remAdmin = Number(match[1]);
   if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
   ADMINS.delete(remAdmin);
