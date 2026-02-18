@@ -37,7 +37,7 @@ const ADMINS = new Set([
   ...db.admins
 ]);
 
-if (!TOKEN || !process.env.SUPER_ADMIN) {
+if (!TOKEN) {
   console.error("❌ TELEGRAM_TOKEN o SUPER_ADMIN mancante!");
   process.exit(1);
 }
@@ -410,7 +410,7 @@ if (sponsorState.has(userId)) {
 // COMANDI ADMIN
 // =====================
 bot.onText(/\/admin add (\d+)/, (msg, match) => {
-  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può aggiungere admin.");
+  if (!SUPER_ADMINS.has(msg.from.id)) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può aggiungere admin.");
   const newAdmin = Number(match[1]);
   if (ADMINS.has(newAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin già presente.");
   ADMINS.add(newAdmin);
@@ -466,7 +466,7 @@ bot.onText(/\/broadcast (.+)/, async (msg, match) => {
 bot.onText(/\/id/, (msg) => bot.sendMessage(msg.chat.id, `🆔 Il tuo ID Telegram è: ${msg.from.id}`));
 
 bot.onText(/\/stats/, (msg) => {
-  bot.sendMessage(msg.chat.id, `📊 Statistiche Bot:\n👥 Utenti totali: ${USERS.size}\n⭐ Recensioni totali: ${reviewState.size}\n📊 Voto medio: ${getAverage()}`);
+  bot.sendMessage(msg.chat.id, `📊 Statistiche Bot:\n👥 Utenti totali: ${USERS.size}\n⭐ Recensioni totali: ${db.stats.totalReviews}\n📊 Voto medio: ${getAverage()}`);
 });
 
 // =====================
