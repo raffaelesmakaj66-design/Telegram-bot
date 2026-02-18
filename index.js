@@ -2,6 +2,21 @@
 // IMPORT
 // =====================
 const TelegramBot = require("node-telegram-bot-api");
+const fs = require("fs");
+
+const DB_FILE = "./database.json";
+
+// Carica database
+let db = { users: [], admins: [] };
+
+if (fs.existsSync(DB_FILE)) {
+  db = JSON.parse(fs.readFileSync(DB_FILE));
+}
+
+// Funzione per salvare
+function saveDB() {
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
 
 // =====================
 // CONFIG
@@ -9,11 +24,7 @@ const TelegramBot = require("node-telegram-bot-api");
 const TOKEN = process.env.TELEGRAM_TOKEN;
 const SUPER_ADMIN = Number(process.env.SUPER_ADMIN);
 
-const ADMINS = new Set([
-  SUPER_ADMIN,
-  5799276579,
-  5318254606
-]);
+const ADMINS = new Set([SUPER_ADMIN, ...db.admins]);
 
 if (!TOKEN || !process.env.SUPER_ADMIN) {
   console.error("❌ TELEGRAM_TOKEN o SUPER_ADMIN mancante!");
@@ -30,7 +41,7 @@ const reviewState = new Map();       // userId -> { rating, waitingComment }
 const activeChats = new Map();       // userId <-> adminId
 const userState = new Map();         // userId -> tipo modulo/assistenza/candidatura
 const sponsorState = new Map();      // userId -> { step, duration }
-const USERS = new Set();
+const USERS = new Set(db.users);
 
 // =====================
 // COSTANTI
@@ -243,7 +254,11 @@ bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
 
+  if (!USERS.has(userId)) {
   USERS.add(userId);
+  db.users.push(userId);
+  saveDB();
+}
 
   // =========================
 // GESTIONE CHAT ATTIVA (utente ↔ tutti gli admin)
@@ -386,6 +401,11 @@ bot.onText(/\/admin add (\d+)/, (msg, match) => {
   const newAdmin = Number(match[1]);
   if (ADMINS.has(newAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin già presente.");
   ADMINS.add(newAdmin);
+  
+  if (!db.admins.includes(newAdmin)) {
+  db.admins.push(newAdmin);
+  saveDB();
+}
   bot.sendMessage(msg.chat.id, `✅ Admin aggiunto: ${newAdmin}`);
 });
 
@@ -394,6 +414,8 @@ bot.onText(/\/admin remove (\d+)/, (msg, match) => {
   const remAdmin = Number(match[1]);
   if (!ADMINS.has(remAdmin)) return bot.sendMessage(msg.chat.id, "⚠️ Admin non trovato.");
   ADMINS.delete(remAdmin);
+  db.admins = db.admins.filter(id => id !== remAdmin);
+saveDB();
   bot.sendMessage(msg.chat.id, `✅ Admin rimosso: ${remAdmin}`);
 });
 
