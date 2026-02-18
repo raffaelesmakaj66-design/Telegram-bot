@@ -7,7 +7,11 @@ const fs = require("fs");
 const DB_FILE = "./database.json";
 
 // Carica database
-let db = { users: [], admins: [] };
+let db = { 
+  users: [], 
+  admins: [], 
+  stats: { totalReviews: 0, totalRating: 0 }
+};
 
 if (fs.existsSync(DB_FILE)) {
   db = JSON.parse(fs.readFileSync(DB_FILE));
@@ -55,9 +59,8 @@ const CHANNEL_URL = "https://t.me/CapyBarNeoTecno";
 const escape = (t) => t.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
 
 const getAverage = () => {
-  let sum = 0, count = 0;
-  reviewState.forEach(r => { if (r.rating) { sum += r.rating; count++; } });
-  return count ? (sum/count).toFixed(1) : "0.0";
+  if (db.stats.totalReviews === 0) return "0.0";
+  return (db.stats.totalRating / db.stats.totalReviews).toFixed(1);
 };
 
 // =====================
@@ -326,6 +329,9 @@ if (!ADMINS.has(userId)) {
   if (reviewState.has(userId)) {
     const { rating } = reviewState.get(userId);
     reviewState.delete(userId);
+    db.stats.totalReviews += 1;
+db.stats.totalRating += rating;
+saveDB();
     bot.sendMessage(chatId,
       `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}`
     );
