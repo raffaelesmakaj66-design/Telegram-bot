@@ -473,7 +473,7 @@ bot.onText(/\/stats/, (msg) => {
 // COMANDO LISTA ADMIN LEGIBILE
 // =====================
 bot.onText(/\/admin list/, async (msg) => {
-  if (msg.from.id !== SUPER_ADMIN) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può vedere la lista degli admin.");
+  if (!SUPER_ADMINS.has(msg.from.id)) return bot.sendMessage(msg.chat.id, "❌ Solo il super admin può vedere la lista degli admin.");
 
   if (ADMINS.size === 0) return bot.sendMessage(msg.chat.id, "⚠️ Nessun admin presente.");
 
