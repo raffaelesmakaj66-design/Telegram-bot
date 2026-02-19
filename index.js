@@ -330,20 +330,28 @@ if (!ADMINS.has(userId)) {
   return;
 }
 
-  // =========================
-  // COMMENTO RECENSIONE
-  // =========================
-  if (reviewState.has(userId)) {
-    const { rating } = reviewState.get(userId);
-    reviewState.delete(userId);
-    db.stats.totalReviews += 1;
-db.stats.totalRating += rating;
-saveDB();
-    bot.sendMessage(chatId,
-      `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}`
-    );
-    return;
-  }
+  if (!USERS.has(userId)) {
+  USERS.add(userId);
+  db.users.push(userId);
+  saveDB();
+}
+
+// =========================
+// COMMENTO RECENSIONE
+// =========================
+if (reviewState.has(userId)) {
+  const { rating } = reviewState.get(userId);
+  reviewState.delete(userId);
+
+  db.stats.totalReviews += 1;
+  db.stats.totalRating += rating;
+  saveDB();
+
+  bot.sendMessage(chatId,
+    `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}`
+  );
+  return;
+}
 
   // =========================
   // MODULI / ASSISTENZA / CANDIDATURA
