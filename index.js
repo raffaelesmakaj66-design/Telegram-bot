@@ -350,6 +350,15 @@ if (reviewState.has(userId)) {
   bot.sendMessage(chatId,
     `✅ Recensione inviata!\n⭐ Voto: ${rating}/5\n💬 Commento: ${escape(msg.text)}`
   );
+
+  // Invia anche a tutti gli admin per visibilità (opzionale)
+  ADMINS.forEach(adminId => {
+    bot.sendMessage(adminId,
+      `💬 *Recensione da ${msg.from.first_name}:*\n⭐ ${rating}/5\n💬 ${escape(msg.text)}`,
+      { parse_mode: "Markdown" }
+    );
+  });
+
   return;
 }
 
